@@ -1,15 +1,27 @@
+# streamlit_app.py
 import streamlit as st
-import yfinance as yf
 import pandas as pd
+import yfinance as yf
 import plotly.graph_objects as go
-from datetime import datetime, timedelta
+from datetime import date, timedelta
 
-# -------------------
-# User-configurable parameters
-# -------------------
-TICKERS = {
+# ===== إعدادات واجهة المستخدم =====
+st.set_page_config(page_title="Geopolitical Tension Index", layout="wide")
+
+st.title("🌍 Geopolitical Tension Index")
+st.markdown("This dashboard shows the geopolitical tension index using Colab strategy.")
+
+# ===== اختيار التاريخ من الواجهة =====
+col1, col2 = st.columns(2)
+with col1:
+    start_date = st.date_input("From:", date.today() - timedelta(days=365))
+with col2:
+    end_date = st.date_input("To:", date.today())
+
+# ===== تعريف الأسهم والأوزان =====
+tickers = {
     'GC=F': 0.25,   # Gold
-    'CL=F': 0.25,   # Oil
+    'CL=F': 0.25,   # Crude Oil
     'LMT': 0.0667,  # Lockheed Martin
     'NOC': 0.0667,  # Northrop Grumman
     'RTX': 0.0667,  # Raytheon
@@ -17,105 +29,58 @@ TICKERS = {
     'CVX': 0.05,    # Chevron
     'BP': 0.05,     # BP
     'ZIM': 0.05,    # ZIM Shipping
-    'AMKBY': 0.05,  # Maersk
+    'AMKBY': 0.05,  # A.P. Moller
     'CMRE': 0.05    # Costamare
 }
 
-PERIOD_OPTIONS = {
-    "Last Day": "1d",
-    "Last Week": "7d",
-    "Last Month": "30d",
-    "Last 6 Months": "180d",
-    "Last Year": "365d"
-}
+# ===== جلب البيانات =====
+st.write("Fetching market data...")
+data_all = yf.download(list(tickers.keys()), start=start_date, end=end_date, interval="1d")['Close']
 
-ALERT_THRESHOLD = 0.6
-SAFE_THRESHOLD = 0.3
-
-# -------------------
-# Streamlit UI
-# -------------------
-st.set_page_config(page_title="Geopolitical Tension Index", layout="wide")
-
-st.title("🌍 Geopolitical Tension Index")
-st.markdown("This dashboard shows market-based signals for geopolitical tension.")
-
-period_choice = st.sidebar.selectbox("Select Period", list(PERIOD_OPTIONS.keys()), index=4)
-period_days = int(PERIOD_OPTIONS[period_choice].replace("d", ""))
-
-end_date = datetime.today()
-start_date = end_date - timedelta(days=period_days)
-
-# -------------------
-# Data Fetching
-# -------------------
-st.info(f"Fetching data from {start_date.date()} to {end_date.date()} ...")
-
-data_all = yf.download(list(TICKERS.keys()), start=start_date, end=end_date, interval="1d")
-
-if isinstance(data_all.columns, pd.MultiIndex):
-    close_df = data_all['Close'].copy()
+# ===== معالجة في حالة وجود MultiIndex أو لا =====
+if isinstance(data_all, pd.Series):
+    close_df = data_all.to_frame()
+elif isinstance(data_all.columns, pd.MultiIndex):
+    close_df = data_all.copy()
 else:
-    close_df = data_all[['Close']].copy()
+    close_df = data_all.copy()
 
-# -------------------
-# Calculations
-# -------------------
-returns = close_df.pct_change().dropna()
+# ===== حساب المؤشر بنفس طريقة Colab =====
+window_days = 3  # نفس نافذة Colab
+pct_change = close_df.pct_change(periods=window_days) * 100
+weighted_scores = pd.DataFrame()
 
-# حساب المؤشر اليومي
-daily_index = (returns * pd.Series(TICKERS)).sum(axis=1)
+for t, w in tickers.items():
+    if t in pct_change.columns:
+        weighted_scores[t] = pct_change[t] * w
 
-signals = []
-for ticker, weight in TICKERS.items():
-    if ticker in returns.columns:
-        avg_change = returns[ticker].mean()
-        signal_strength = 1 if avg_change > 0 else 0  # Simplified rule
-        signals.append({
-            "Ticker": ticker,
-            "AvgChange(%)": avg_change * 100,
-            "SignalStrength": signal_strength,
-            "Weight": weight
-        })
+# المؤشر الإجمالي
+weighted_scores["TotalIndex"] = weighted_scores.sum(axis=1)
 
-signals_df = pd.DataFrame(signals)
-weighted_score = (signals_df["SignalStrength"] * signals_df["Weight"]).sum()
+# ===== التطبيع بين 0 و 100 =====
+min_val = weighted_scores["TotalIndex"].min()
+max_val = weighted_scores["TotalIndex"].max()
+weighted_scores["NormalizedIndex"] = 100 * (weighted_scores["TotalIndex"] - min_val) / (max_val - min_val)
 
-# -------------------
-# Status Message
-# -------------------
-if weighted_score >= ALERT_THRESHOLD:
-    st.error(f"🚨 High Tension Alert! Index = {weighted_score:.2%}")
-elif weighted_score <= SAFE_THRESHOLD:
-    st.success(f"✅ Situation appears calm. Index = {weighted_score:.2%}")
-else:
-    st.warning(f"⚠️ Moderate Tension. Index = {weighted_score:.2%}")
+# ===== عرض الجدول =====
+st.subheader("📊 Tension Index Table")
+st.dataframe(weighted_scores[["TotalIndex", "NormalizedIndex"]].round(3))
 
-# -------------------
-# Table
-# -------------------
-st.subheader("📊 Ticker Signals")
-st.dataframe(signals_df.style.format({"AvgChange(%)": "{:.3f}", "Weight": "{:.4f}"}))
-
-# -------------------
-# Plotly Chart - المؤشر الإجمالي
-# -------------------
+# ===== رسم بياني تفاعلي =====
 fig = go.Figure()
 fig.add_trace(go.Scatter(
-    x=daily_index.index,
-    y=daily_index.values,
+    x=weighted_scores.index,
+    y=weighted_scores["NormalizedIndex"],
     mode='lines+markers',
-    name="Geopolitical Tension Index",
+    name='Tension Index',
     line=dict(color='red')
 ))
 
 fig.update_layout(
     title="Geopolitical Tension Index Over Time",
     xaxis_title="Date",
-    yaxis_title="Index Value",
-    hovermode="x unified",
-    xaxis=dict(rangeslider=dict(visible=True))
+    yaxis_title="Index (0-100)",
+    hovermode="x unified"
 )
-st.plotly_chart(fig, use_container_width=True)
 
-st.caption("Data source: Yahoo Finance | Analysis by Geopolitical Tension Index")
+st.plotly_chart(fig, use_container_width=True)
