@@ -63,11 +63,14 @@ else:
 # -------------------
 returns = close_df.pct_change().dropna()
 
+# حساب المؤشر اليومي
+daily_index = (returns * pd.Series(TICKERS)).sum(axis=1)
+
 signals = []
 for ticker, weight in TICKERS.items():
     if ticker in returns.columns:
         avg_change = returns[ticker].mean()
-        signal_strength = 1 if avg_change > 0 else 0  # Simplified rule: positive avg = tension signal
+        signal_strength = 1 if avg_change > 0 else 0  # Simplified rule
         signals.append({
             "Ticker": ticker,
             "AvgChange(%)": avg_change * 100,
@@ -95,17 +98,23 @@ st.subheader("📊 Ticker Signals")
 st.dataframe(signals_df.style.format({"AvgChange(%)": "{:.3f}", "Weight": "{:.4f}"}))
 
 # -------------------
-# Plotly Chart
+# Plotly Chart - المؤشر الإجمالي
 # -------------------
 fig = go.Figure()
-for col in close_df.columns:
-    fig.add_trace(go.Scatter(x=close_df.index, y=close_df[col], mode='lines', name=col))
+fig.add_trace(go.Scatter(
+    x=daily_index.index,
+    y=daily_index.values,
+    mode='lines+markers',
+    name="Geopolitical Tension Index",
+    line=dict(color='red')
+))
 
 fig.update_layout(
-    title="Price Trends of Selected Tickers",
+    title="Geopolitical Tension Index Over Time",
     xaxis_title="Date",
-    yaxis_title="Price",
-    hovermode="x unified"
+    yaxis_title="Index Value",
+    hovermode="x unified",
+    xaxis=dict(rangeslider=dict(visible=True))
 )
 st.plotly_chart(fig, use_container_width=True)
 
