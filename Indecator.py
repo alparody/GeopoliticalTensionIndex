@@ -1,81 +1,52 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import datetime
+from datetime import date, timedelta
+import plotly.graph_objects as go
 
-# ------------------------
-# إعدادات الصفحة
-# ------------------------
 st.set_page_config(page_title="Geopolitical Tension Index", layout="wide")
+st.title("Geopolitical Tension Index (Colab Strategy)")
 
-st.title("📈 Geopolitical Tension Index")
+# -- قائمة الأسهم بعد تصحيح الرموز --
+TICKERS = [
+    'GC=F', 'CL=F',      # ذهب / نفط
+    'LMT', 'NOC', 'RTX', # دفاع
+    'XOM', 'CVX', 'BP',  # طاقة أمريكا
+    'ZIM', 'AMKBY', 'CMRE',  # شحن عالمي
+    '2222.SR', '2010.SR',    # أرامكو / سابك
+    'QNBK.QA', 'QEWS.QA',    # قطر
+    '7020.SR', 'DU.AE',      # الإمارات: اتصالات وسهم du
+    'ORWE.CA', 'COMI.CA'     # مصر
+]
 
-# ------------------------
-# تعريف الأسهم + أوزانها
-# ------------------------
-tickers = {
-    'GC=F': 'Gold Futures',
-    'CL=F': 'Crude Oil Futures',
-    'LMT': 'Lockheed Martin',
-    'NOC': 'Northrop Grumman',
-    'RTX': 'RTX Corp',
-    'XOM': 'Exxon Mobil',
-    'CVX': 'Chevron',
-    'BP': 'BP PLC',
-    'ZIM': 'ZIM Integrated Shipping',
-    'AMKBY': 'A.P. Moller Maersk',
-    'CMRE': 'Costamare Inc',
-    # أمثلة لأسهم شرق أوسطية موجودة فعلاً على Yahoo Finance:
-    'ADNOC Distribution.AE': 'ADNOC Distribution',
-    'QNBK.QA': 'Qatar National Bank'
-}
-
-# ------------------------
-# اختيار التواريخ
-# ------------------------
-col1, col2 = st.sidebar.columns(2)
+# اختر الفترة
+col1, col2 = st.columns(2)
 with col1:
-    start_date = st.date_input("من تاريخ", datetime.date(2022, 1, 1))
+    start_date = st.date_input("من:", date.today() - timedelta(days=365))
 with col2:
-    end_date = st.date_input("إلى تاريخ", datetime.date.today())
+    end_date = st.date_input("إلى:", date.today())
 
-# ------------------------
-# إدخال الأوزان
-# ------------------------
-weights = {}
-st.sidebar.subheader("أوزان الأسهم (%)")
-for ticker, name in tickers.items():
-    weights[ticker] = st.sidebar.slider(f"{name} ({ticker})", 0, 100, 10)
+# أوزان الأسهم من الواجهة
+st.sidebar.header("Weights (0–100%)")
+weights = {t: st.sidebar.number_input(f"{t}", min_value=0.0, max_value=100.0, value=10.0, step=0.5) for t in TICKERS}
 
-# ------------------------
 # تحميل البيانات
-# ------------------------
-try:
-    data_all = yf.download(list(tickers.keys()), start=start_date, end=end_date, interval="1d")['Close']
-except Exception as e:
-    st.error(f"خطأ في تحميل البيانات: {e}")
-    st.stop()
+data = yf.download(TICKERS, start=start_date, end=end_date, interval="1d")['Close']
+data = data.dropna(how='all', axis=1)  # إزالة أعمدة غير متوفرة
 
-# ------------------------
-# حساب العائدات والمؤشر
-# ------------------------
-returns = data_all.pct_change(fill_method=None)
-weighted_returns = pd.DataFrame()
+# حساب المؤشر Colab style
+returns = data.pct_change().dropna()
+weighted = pd.DataFrame({t: returns[t] * (weights.get(t,0)/100) for t in returns.columns})
+index_series = weighted.sum(axis=1).cumsum()
 
-for ticker in tickers.keys():
-    if ticker in returns.columns:
-        weighted_returns[ticker] = returns[ticker] * (weights[ticker] / 100)
+# جدول و رسم
+st.subheader("Latest Tension Index values")
+st.line_chart(index_series.rename("Tension Index"))
 
-index_series = weighted_returns.sum(axis=1).cumsum()
+df_latest = pd.DataFrame({
+    "Date": index_series.index,
+    "Tension Index": index_series.values
+}).tail(10).set_index("Date")
+st.write(df_latest.style.format("{:.3f}"))
 
-# ------------------------
-# عرض البيانات والرسوم
-# ------------------------
-st.subheader("المؤشر العام")
-st.line_chart(index_series)
-
-st.subheader("البيانات الخام")
-st.dataframe(data_all)
-
-st.subheader("العائدات اليومية")
-st.dataframe(returns)
+st.caption("Powered by real returns × weights, cumulative sum (exact Colab logic).")
