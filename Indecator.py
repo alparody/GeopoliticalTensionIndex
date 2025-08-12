@@ -1,52 +1,43 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-from datetime import date, timedelta
+import datetime
 import plotly.graph_objects as go
 
 st.set_page_config(page_title="Geopolitical Tension Index", layout="wide")
-st.title("Geopolitical Tension Index (Colab Strategy)")
+st.title("Geopolitical Tension Index (% based on Colab logic)")
 
-# -- قائمة الأسهم بعد تصحيح الرموز --
 TICKERS = [
-    'GC=F', 'CL=F',      # ذهب / نفط
-    'LMT', 'NOC', 'RTX', # دفاع
-    'XOM', 'CVX', 'BP',  # طاقة أمريكا
-    'ZIM', 'AMKBY', 'CMRE',  # شحن عالمي
-    '2222.SR', '2010.SR',    # أرامكو / سابك
-    'QNBK.QA', 'QEWS.QA',    # قطر
-    '7020.SR', 'DU.AE',      # الإمارات: اتصالات وسهم du
-    'ORWE.CA', 'COMI.CA'     # مصر
+    'GC=F','CL=F',          # Commodities
+    'LMT','NOC','RTX',      # US Defense
+    'XOM','CVX','BP',       # US Energy
+    'ZIM','AMKBY','CMRE',   # Shipping
+    '2222.SR','2010.SR',    # Aramco, SABIC
+    'QNBK.QA','QEWS.QA',    # Qatar
+    'EGS740C1C010.CA',      # Suez Canal Tech Settling
+    'COMI.CA'               # Commercial Intl Bank Egypt
 ]
 
-# اختر الفترة
-col1, col2 = st.columns(2)
+col1, col2 = st.sidebar.columns(2)
 with col1:
-    start_date = st.date_input("من:", date.today() - timedelta(days=365))
+    start_date = st.sidebar.date_input("From:", datetime.date.today() - datetime.timedelta(days=365))
 with col2:
-    end_date = st.date_input("إلى:", date.today())
+    end_date = st.sidebar.date_input("To:", datetime.date.today())
 
-# أوزان الأسهم من الواجهة
-st.sidebar.header("Weights (0–100%)")
-weights = {t: st.sidebar.number_input(f"{t}", min_value=0.0, max_value=100.0, value=10.0, step=0.5) for t in TICKERS}
+st.sidebar.header("Weights (%)")
+weights = {t: st.sidebar.number_input(f"{t}", 0.0, 100.0, 10.0, 0.1) for t in TICKERS}
 
-# تحميل البيانات
-data = yf.download(TICKERS, start=start_date, end=end_date, interval="1d")['Close']
-data = data.dropna(how='all', axis=1)  # إزالة أعمدة غير متوفرة
+df = yf.download(TICKERS, start=start_date, end=end_date, interval="1d")['Close']
+df = df.dropna(how='all', axis=1)
 
-# حساب المؤشر Colab style
-returns = data.pct_change().dropna()
+returns = df.pct_change().dropna()
 weighted = pd.DataFrame({t: returns[t] * (weights.get(t,0)/100) for t in returns.columns})
-index_series = weighted.sum(axis=1).cumsum()
+index_pct = weighted.sum(axis=1).cumsum() * 100  # cumulative sum in pct
 
-# جدول و رسم
-st.subheader("Latest Tension Index values")
-st.line_chart(index_series.rename("Tension Index"))
+st.subheader("Tension Index (Cumulative %)")
+st.line_chart(index_pct)
 
-df_latest = pd.DataFrame({
-    "Date": index_series.index,
-    "Tension Index": index_series.values
-}).tail(10).set_index("Date")
-st.write(df_latest.style.format("{:.3f}"))
+st.subheader("Latest Values")
+st.table(index_pct.tail(10).rename("Index Value (%)").round(2).to_frame())
 
-st.caption("Powered by real returns × weights, cumulative sum (exact Colab logic).")
+st.caption("Based on return × weight, cumulative — exact Colab logic")
