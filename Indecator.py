@@ -1,118 +1,81 @@
 import streamlit as st
-import pandas as pd
 import yfinance as yf
-import plotly.graph_objects as go
-from datetime import date
+import pandas as pd
+import datetime
 
-# =======================
-# Settings
-# =======================
-TICKERS = [
-    # Commodities
-    'GC=F',  # Gold
-    'CL=F',  # Crude Oil
-
-    # US Defense
-    'LMT', 'NOC', 'RTX',
-
-    # US Energy
-    'XOM', 'CVX', 'BP',
-
-    # Shipping
-    'ZIM', 'AMKBY', 'CMRE',
-
-    # Middle East - Saudi Arabia
-    '2222.SR',  # Saudi Aramco
-    '2010.SR',  # SABIC
-
-    # Middle East - Qatar
-    'QNBK.QA',  # Qatar National Bank
-    'QEWS.QA',  # Qatar Electricity & Water
-
-    # Middle East - UAE
-    'EMAAR.DU',     # Emaar Properties
-    'ETISALAT.AD',  # Etisalat UAE
-
-    # Middle East - Egypt
-    'ORWE.CA',  # Orascom Development
-    'COMI.CA'   # Commercial International Bank
-]
-
-# Editable weights
-WEIGHTS = {
-    'GC=F': 0.1, 'CL=F': 0.1,
-    'LMT': 0.05, 'NOC': 0.05, 'RTX': 0.05,
-    'XOM': 0.05, 'CVX': 0.05, 'BP': 0.05,
-    'ZIM': 0.05, 'AMKBY': 0.05, 'CMRE': 0.05,
-    '2222.SR': 0.08, '2010.SR': 0.05,
-    'QNBK.QA': 0.05, 'QEWS.QA': 0.03,
-    'EMAAR.DU': 0.03, 'ETISALAT.AD': 0.03,
-    'ORWE.CA': 0.02, 'COMI.CA': 0.02
-}
-
-# =======================
-# Streamlit UI
-# =======================
+# ------------------------
+# إعدادات الصفحة
+# ------------------------
 st.set_page_config(page_title="Geopolitical Tension Index", layout="wide")
 
-st.title("🌍 Geopolitical Tension Index")
-st.markdown("مؤشر يرصد التوترات الجيوسياسية بناءً على أداء قطاعات وشركات مختارة عالميًا وإقليميًا.")
+st.title("📈 Geopolitical Tension Index")
 
-# Date picker
-col1, col2 = st.columns(2)
+# ------------------------
+# تعريف الأسهم + أوزانها
+# ------------------------
+tickers = {
+    'GC=F': 'Gold Futures',
+    'CL=F': 'Crude Oil Futures',
+    'LMT': 'Lockheed Martin',
+    'NOC': 'Northrop Grumman',
+    'RTX': 'RTX Corp',
+    'XOM': 'Exxon Mobil',
+    'CVX': 'Chevron',
+    'BP': 'BP PLC',
+    'ZIM': 'ZIM Integrated Shipping',
+    'AMKBY': 'A.P. Moller Maersk',
+    'CMRE': 'Costamare Inc',
+    # أمثلة لأسهم شرق أوسطية موجودة فعلاً على Yahoo Finance:
+    'ADNOC Distribution.AE': 'ADNOC Distribution',
+    'QNBK.QA': 'Qatar National Bank'
+}
+
+# ------------------------
+# اختيار التواريخ
+# ------------------------
+col1, col2 = st.sidebar.columns(2)
 with col1:
-    start_date = st.date_input("من:", date(2022, 1, 1))
+    start_date = st.date_input("من تاريخ", datetime.date(2022, 1, 1))
 with col2:
-    end_date = st.date_input("إلى:", date.today())
+    end_date = st.date_input("إلى تاريخ", datetime.date.today())
 
-# =======================
-# Data Download
-# =======================
-data_all = yf.download(TICKERS, start=start_date, end=end_date, interval="1d")['Close']
+# ------------------------
+# إدخال الأوزان
+# ------------------------
+weights = {}
+st.sidebar.subheader("أوزان الأسهم (%)")
+for ticker, name in tickers.items():
+    weights[ticker] = st.sidebar.slider(f"{name} ({ticker})", 0, 100, 10)
 
-# =======================
-# Index Calculation
-# =======================
-returns = data_all.pct_change().dropna()
-weighted_returns = returns.copy()
+# ------------------------
+# تحميل البيانات
+# ------------------------
+try:
+    data_all = yf.download(list(tickers.keys()), start=start_date, end=end_date, interval="1d")['Close']
+except Exception as e:
+    st.error(f"خطأ في تحميل البيانات: {e}")
+    st.stop()
 
-for ticker in WEIGHTS:
-    if ticker in weighted_returns.columns:
-        weighted_returns[ticker] = weighted_returns[ticker] * WEIGHTS[ticker]
+# ------------------------
+# حساب العائدات والمؤشر
+# ------------------------
+returns = data_all.pct_change(fill_method=None)
+weighted_returns = pd.DataFrame()
 
-# المؤشر الإجمالي
-index_series = weighted_returns.sum(axis=1) * 100  # كنسبة مئوية
-index_series = (index_series - index_series.min()) / (index_series.max() - index_series.min()) * 100  # Normalize 0-100
+for ticker in tickers.keys():
+    if ticker in returns.columns:
+        weighted_returns[ticker] = returns[ticker] * (weights[ticker] / 100)
 
-# =======================
-# Display Table
-# =======================
-st.subheader("📊 آخر بيانات المؤشر")
-latest_df = pd.DataFrame({
-    "Date": index_series.index,
-    "Tension Index": index_series.values
-}).set_index("Date").tail(10)
+index_series = weighted_returns.sum(axis=1).cumsum()
 
-st.dataframe(latest_df.style.format({"Tension Index": "{:.2f}"}))
+# ------------------------
+# عرض البيانات والرسوم
+# ------------------------
+st.subheader("المؤشر العام")
+st.line_chart(index_series)
 
-# =======================
-# Chart
-# =======================
-fig = go.Figure()
-fig.add_trace(go.Scatter(
-    x=index_series.index, 
-    y=index_series.values,
-    mode='lines',
-    name='Tension Index',
-    line=dict(color='red', width=2)
-))
+st.subheader("البيانات الخام")
+st.dataframe(data_all)
 
-fig.update_layout(
-    title="📈 Geopolitical Tension Index (0-100)",
-    xaxis_title="Date",
-    yaxis_title="Index",
-    hovermode="x unified",
-    height=500
-)
-
-st.plotly_chart(fig, use_container_width=True)
+st.subheader("العائدات اليومية")
+st.dataframe(returns)
