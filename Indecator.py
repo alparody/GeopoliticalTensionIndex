@@ -19,19 +19,37 @@ with col2:
     end_date = st.date_input("To:", date.today())
 
 # ===== تعريف الأسهم والأوزان =====
-tickers = {
-    'GC=F': 0.25,   # Gold
-    'CL=F': 0.25,   # Crude Oil
-    'LMT': 0.0667,  # Lockheed Martin
-    'NOC': 0.0667,  # Northrop Grumman
-    'RTX': 0.0667,  # Raytheon
-    'XOM': 0.05,    # Exxon Mobil
-    'CVX': 0.05,    # Chevron
-    'BP': 0.05,     # BP
-    'ZIM': 0.05,    # ZIM Shipping
-    'AMKBY': 0.05,  # A.P. Moller
-    'CMRE': 0.05    # Costamare
-}
+TICKERS = [
+    # Commodities
+    'GC=F',  # Gold
+    'CL=F',  # Crude Oil
+
+    # US Defense
+    'LMT', 'NOC', 'RTX',
+
+    # US Energy
+    'XOM', 'CVX', 'BP',
+
+    # Shipping
+    'ZIM', 'AMKBY', 'CMRE',
+
+    # Middle East - Saudi Arabia
+    '2222.SR',  # Saudi Aramco
+    '2010.SR',  # SABIC
+
+    # Middle East - Qatar
+    'QNBK.QA',  # Qatar National Bank
+    'QEWS.QA',  # Qatar Electricity & Water
+
+    # Middle East - UAE
+    'EMAAR.DU',     # Emaar Properties
+    'ETISALAT.AD',  # Etisalat UAE
+
+    # Middle East - Egypt
+    'ORWE.CA',  # Orascom Development
+    'COMI.CA'   # Commercial International Bank
+]
+
 
 # ===== جلب البيانات =====
 st.write("Fetching market data...")
