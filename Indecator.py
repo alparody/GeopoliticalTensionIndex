@@ -1,24 +1,12 @@
-# streamlit_app.py
 import streamlit as st
 import pandas as pd
 import yfinance as yf
 import plotly.graph_objects as go
-from datetime import date, timedelta
+from datetime import date
 
-# ===== إعدادات واجهة المستخدم =====
-st.set_page_config(page_title="Geopolitical Tension Index", layout="wide")
-
-st.title("🌍 Geopolitical Tension Index")
-st.markdown("This dashboard shows the geopolitical tension index using Colab strategy.")
-
-# ===== اختيار التاريخ من الواجهة =====
-col1, col2 = st.columns(2)
-with col1:
-    start_date = st.date_input("From:", date.today() - timedelta(days=365))
-with col2:
-    end_date = st.date_input("To:", date.today())
-
-# ===== تعريف الأسهم والأوزان =====
+# =======================
+# Settings
+# =======================
 TICKERS = [
     # Commodities
     'GC=F',  # Gold
@@ -50,55 +38,81 @@ TICKERS = [
     'COMI.CA'   # Commercial International Bank
 ]
 
+# Editable weights
+WEIGHTS = {
+    'GC=F': 0.1, 'CL=F': 0.1,
+    'LMT': 0.05, 'NOC': 0.05, 'RTX': 0.05,
+    'XOM': 0.05, 'CVX': 0.05, 'BP': 0.05,
+    'ZIM': 0.05, 'AMKBY': 0.05, 'CMRE': 0.05,
+    '2222.SR': 0.08, '2010.SR': 0.05,
+    'QNBK.QA': 0.05, 'QEWS.QA': 0.03,
+    'EMAAR.DU': 0.03, 'ETISALAT.AD': 0.03,
+    'ORWE.CA': 0.02, 'COMI.CA': 0.02
+}
 
-# ===== جلب البيانات =====
-st.write("Fetching market data...")
-data_all = yf.download(list(tickers.keys()), start=start_date, end=end_date, interval="1d")['Close']
+# =======================
+# Streamlit UI
+# =======================
+st.set_page_config(page_title="Geopolitical Tension Index", layout="wide")
 
-# ===== معالجة في حالة وجود MultiIndex أو لا =====
-if isinstance(data_all, pd.Series):
-    close_df = data_all.to_frame()
-elif isinstance(data_all.columns, pd.MultiIndex):
-    close_df = data_all.copy()
-else:
-    close_df = data_all.copy()
+st.title("🌍 Geopolitical Tension Index")
+st.markdown("مؤشر يرصد التوترات الجيوسياسية بناءً على أداء قطاعات وشركات مختارة عالميًا وإقليميًا.")
 
-# ===== حساب المؤشر بنفس طريقة Colab =====
-window_days = 3  # نفس نافذة Colab
-pct_change = close_df.pct_change(periods=window_days) * 100
-weighted_scores = pd.DataFrame()
+# Date picker
+col1, col2 = st.columns(2)
+with col1:
+    start_date = st.date_input("من:", date(2022, 1, 1))
+with col2:
+    end_date = st.date_input("إلى:", date.today())
 
-for t, w in tickers.items():
-    if t in pct_change.columns:
-        weighted_scores[t] = pct_change[t] * w
+# =======================
+# Data Download
+# =======================
+data_all = yf.download(TICKERS, start=start_date, end=end_date, interval="1d")['Close']
+
+# =======================
+# Index Calculation
+# =======================
+returns = data_all.pct_change().dropna()
+weighted_returns = returns.copy()
+
+for ticker in WEIGHTS:
+    if ticker in weighted_returns.columns:
+        weighted_returns[ticker] = weighted_returns[ticker] * WEIGHTS[ticker]
 
 # المؤشر الإجمالي
-weighted_scores["TotalIndex"] = weighted_scores.sum(axis=1)
+index_series = weighted_returns.sum(axis=1) * 100  # كنسبة مئوية
+index_series = (index_series - index_series.min()) / (index_series.max() - index_series.min()) * 100  # Normalize 0-100
 
-# ===== التطبيع بين 0 و 100 =====
-min_val = weighted_scores["TotalIndex"].min()
-max_val = weighted_scores["TotalIndex"].max()
-weighted_scores["NormalizedIndex"] = 100 * (weighted_scores["TotalIndex"] - min_val) / (max_val - min_val)
+# =======================
+# Display Table
+# =======================
+st.subheader("📊 آخر بيانات المؤشر")
+latest_df = pd.DataFrame({
+    "Date": index_series.index,
+    "Tension Index": index_series.values
+}).set_index("Date").tail(10)
 
-# ===== عرض الجدول =====
-st.subheader("📊 Tension Index Table")
-st.dataframe(weighted_scores[["TotalIndex", "NormalizedIndex"]].round(3))
+st.dataframe(latest_df.style.format({"Tension Index": "{:.2f}"}))
 
-# ===== رسم بياني تفاعلي =====
+# =======================
+# Chart
+# =======================
 fig = go.Figure()
 fig.add_trace(go.Scatter(
-    x=weighted_scores.index,
-    y=weighted_scores["NormalizedIndex"],
-    mode='lines+markers',
+    x=index_series.index, 
+    y=index_series.values,
+    mode='lines',
     name='Tension Index',
-    line=dict(color='red')
+    line=dict(color='red', width=2)
 ))
 
 fig.update_layout(
-    title="Geopolitical Tension Index Over Time",
+    title="📈 Geopolitical Tension Index (0-100)",
     xaxis_title="Date",
-    yaxis_title="Index (0-100)",
-    hovermode="x unified"
+    yaxis_title="Index",
+    hovermode="x unified",
+    height=500
 )
 
 st.plotly_chart(fig, use_container_width=True)
