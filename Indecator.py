@@ -7,7 +7,7 @@ st.set_page_config(page_title="Political Tension Index", layout="wide")
 st.title("Political Tension Index (0–100 Scale)")
 
 # Read CSV from GitHub repository (replace URL with actual raw link)
-csv_url = "https://raw.githubusercontent.com/YourUser/YourRepo/main/stocks_weights.csv"
+csv_url = "https://raw.githubusercontent.com/alparody/GeopoliticalTensionIndex/refs/heads/main/stocks_weights.csv"
 df = pd.read_csv(csv_url)
 
 col1, col2 = st.columns(2)
