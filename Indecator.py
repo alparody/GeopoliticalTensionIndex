@@ -1,43 +1,43 @@
 import streamlit as st
-import yfinance as yf
 import pandas as pd
-import datetime
-import plotly.graph_objects as go
+import yfinance as yf
+from datetime import date
 
-st.set_page_config(page_title="Geopolitical Tension Index", layout="wide")
-st.title("Geopolitical Tension Index (% based on Colab logic)")
+st.set_page_config(page_title="Political Tension Index", layout="wide")
+st.title("Political Tension Index (0–100 Scale)")
 
-TICKERS = [
-    'GC=F','CL=F',          # Commodities
-    'LMT','NOC','RTX',      # US Defense
-    'XOM','CVX','BP',       # US Energy
-    'ZIM','AMKBY','CMRE',   # Shipping
-    '2222.SR','2010.SR',    # Aramco, SABIC
-    'QNBK.QA','QEWS.QA',    # Qatar
-    'EGS740C1C010.CA',      # Suez Canal Tech Settling
-    'COMI.CA'               # Commercial Intl Bank Egypt
-]
+# Read CSV from GitHub repository (replace URL with actual raw link)
+csv_url = "https://raw.githubusercontent.com/YourUser/YourRepo/main/stocks_weights.csv"
+df = pd.read_csv(csv_url)
 
-col1, col2 = st.sidebar.columns(2)
+col1, col2 = st.columns(2)
 with col1:
-    start_date = st.sidebar.date_input("From:", datetime.date.today() - datetime.timedelta(days=365))
+    start_date = st.date_input("From Date", date.today() - pd.Timedelta(days=365))
 with col2:
-    end_date = st.sidebar.date_input("To:", datetime.date.today())
+    end_date = st.date_input("To Date", date.today())
 
-st.sidebar.header("Weights (%)")
-weights = {t: st.sidebar.number_input(f"{t}", 0.0, 100.0, 10.0, 0.1) for t in TICKERS}
+# Fetch data
+data = yf.download(df["symbol"].tolist(), start=start_date, end=end_date)["Close"].dropna(how="all", axis=1)
+returns = data.pct_change().dropna()
 
-df = yf.download(TICKERS, start=start_date, end=end_date, interval="1d")['Close']
-df = df.dropna(how='all', axis=1)
+# Weighted returns sign-adjusted
+weighted = pd.DataFrame()
+for _, row in df.iterrows():
+    s = row["symbol"]
+    if s in returns.columns:
+        sign = 1 if row["positive"] == 1 else -1
+        weighted[s] = returns[s] * row["weight"] * sign
 
-returns = df.pct_change().dropna()
-weighted = pd.DataFrame({t: returns[t] * (weights.get(t,0)/100) for t in returns.columns})
-index_pct = weighted.sum(axis=1).cumsum() * 100  # cumulative sum in pct
+# Compute index (cumulative), then scale 0–100
+index_series = weighted.sum(axis=1).cumsum()
+min_v, max_v = index_series.min(), index_series.max()
+index_pct = (index_series - min_v) / (max_v - min_v) * 100
 
-st.subheader("Tension Index (Cumulative %)")
+today_pct = index_pct.iloc[-1]
+color = "green" if today_pct >= 70 else "orange" if today_pct >= 40 else "red"
+
+st.markdown(f"### Today's Index: **{today_pct:.2f}%**")
+st.markdown(f"<h2 style='color:{color};'>■</h2>", unsafe_allow_html=True)
+
+# Plot
 st.line_chart(index_pct)
-
-st.subheader("Latest Values")
-st.table(index_pct.tail(10).rename("Index Value (%)").round(2).to_frame())
-
-st.caption("Based on return × weight, cumulative — exact Colab logic")
