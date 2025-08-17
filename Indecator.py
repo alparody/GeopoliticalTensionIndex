@@ -18,16 +18,14 @@ default_start = date.today() - pd.Timedelta(days=365)
 default_end = date.today()
 
 with st.sidebar:
-    col1, col2, col3 = st.columns([2,2,1])
-    with col1:
-        start_date = st.date_input("From Date", default_start, key="start")
-    with col2:
-        end_date = st.date_input("To Date", default_end, key="end")
-    with col3:
-        if st.button("Today"):
-            start_date = default_start
-            end_date = default_end
-            st.experimental_rerun()
+    st.date_input("From Date", default_start, key="start")
+    st.date_input("To Date", default_end, key="end")
+    
+    # زر Today في سطر جديد
+    if st.button("Today"):
+        st.session_state["start"] = default_start
+        st.session_state["end"] = default_end
+        st.experimental_rerun()
 
 # --- Cache data fetch ---
 @st.cache_data(show_spinner=False)
