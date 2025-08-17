@@ -26,7 +26,7 @@ weights_df["weight"] = weights_df["weight"].astype(float)
 weights_df["positive"] = weights_df["positive"].astype(int)
 
 # --- Sidebar: مؤشرات إضافية ---
-st.sidebar.header("📊 Optional Indicators")
+st.sidebar.header("📊 Optional Indicators (checked = visible)")
 show_vix = st.sidebar.checkbox("VIX", value=True)
 show_move = st.sidebar.checkbox("MOVE Index", value=True)
 show_gold_vol = st.sidebar.checkbox("Gold Volatility", value=True)
@@ -57,12 +57,6 @@ available = [s for s in weights_df["symbol"] if s in returns.columns]
 weights_df = weights_df[weights_df["symbol"].isin(available)].copy()
 returns = returns[available]
 
-# --- User-adjustable weights table (أسفل الرسم البياني) ---
-st.markdown("### Adjust weights & sign (Positive = 1, Negative = 0) below the chart:")
-# keep original weights for restore
-original_weights = weights_df.copy()
-weights_df = st.data_editor(weights_df, key="weights_editor", use_container_width=True)
-
 # --- Compute weighted GTI ---
 total_weight = weights_df["weight"].sum()
 weighted = pd.DataFrame(index=returns.index)
@@ -71,7 +65,7 @@ for _, row in weights_df.iterrows():
     weighted[row["symbol"]] = returns[row["symbol"]] * (row["weight"] / total_weight) * sign
 
 # --- EWMA smoothing & z-score normalization ---
-smoothed = weighted.ewm(span=5).mean()  # تقليل الضوضاء
+smoothed = weighted.ewm(span=5).mean()
 zscore_norm = (smoothed - smoothed.mean()) / smoothed.std()
 
 index_series = zscore_norm.sum(axis=1).cumsum()
@@ -80,20 +74,32 @@ index_pct = (index_series - min_v) / (max_v - min_v) * 100.0
 today_pct = float(index_pct.iloc[-1])
 color = "green" if today_pct >= 70 else "orange" if today_pct >= 40 else "red"
 
-# --- Line chart GTI ---
+# --- Prepare optional indicators ---
+optional_indicators = pd.DataFrame(index=returns.index)
+if show_vix and "^VIX" in returns.columns:
+    optional_indicators["VIX"] = returns["^VIX"].cumsum()
+if show_move and "MOVE_INDEX_SYMBOL" in returns.columns:
+    optional_indicators["MOVE"] = returns["MOVE_INDEX_SYMBOL"].cumsum()
+if show_gold_vol and "GC=F" in returns.columns:
+    optional_indicators["Gold Volatility"] = returns["GC=F"].cumsum()
+
+# --- Merge GTI + optional for plotting ---
+plot_df = pd.concat([index_pct.rename("GTI"), optional_indicators], axis=1)
+
+# --- Chart type ---
 chart_type = st.selectbox("Select chart type", ["Line", "Bar"])
 if chart_type == "Line":
-    st.line_chart(index_pct, height=280)
+    st.line_chart(plot_df, height=300)
 else:
-    fig = px.bar(index_pct, labels={"value":"GTI","index":"Date"}, title="GTI (0-100)")
+    fig = px.bar(plot_df, labels={"value":"Index","index":"Date"}, title="Political Tension Index + Optional Indicators")
     st.plotly_chart(fig, use_container_width=True)
 
 st.markdown(f"### Today's Index: **{today_pct:.2f}%**")
 st.markdown(f"<h2 style='color:{color};'>■</h2>", unsafe_allow_html=True)
 
-# --- Table: adjustable weights & sign ---
-st.markdown("### Adjusted Weights Table")
-st.dataframe(weights_df)
+# --- Table: adjustable weights & sign (تحت الرسم البياني فقط) ---
+st.markdown("### Adjust weights & sign (Positive = 1, Negative = 0)")
+weights_df = st.data_editor(weights_df, key="weights_editor", use_container_width=True)
 
 # --- Optional: download index ---
 st.download_button(
