@@ -1,9 +1,9 @@
 symbol,weight,positive
-GC=F,17,0
+GC=F,14,0
 SI=F,3,0
 HG=F,2,0
 PL=F,5,0
-CL=F,11,0
+CL=F,9,0
 NG=F,5,0
 LMT,3,1
 NOC,3,1
@@ -20,4 +20,4 @@ DX-Y.NYB,3,0
 BUND.DE,5,0
 ^GSPC,3,0
 EEM,2,0
-^VIX,15,0
+^VIX,12,0
