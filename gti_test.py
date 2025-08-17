@@ -10,8 +10,8 @@ def run_gti_test():
         weights_df = pd.read_csv("stocks_weights.csv")
 
         # استخراج الرموز والأوزان
-        symbols = weights_df["Symbol"].tolist()
-        weights = weights_df["Weight"].tolist()
+        symbols = weights_df["symbol"].tolist()
+        weights = weights_df["weight"].tolist()
 
         st.write("### 📊 GTI Test Run")
         st.write("Using weights file with symbols:", symbols)
