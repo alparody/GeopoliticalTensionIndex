@@ -1,5 +1,5 @@
 symbol,weight,positive
-GC=F,14,0
+GC=F,15,0
 SI=F,3,0
 HG=F,2,0
 PL=F,5,0
@@ -20,4 +20,4 @@ DX-Y.NYB,3,0
 BUND.DE,5,0
 ^GSPC,3,0
 EEM,2,0
-^VIX,12,0
+^VIX,8,1
