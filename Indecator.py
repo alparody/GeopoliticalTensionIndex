@@ -4,6 +4,18 @@ import yfinance as yf
 from datetime import date
 import plotly.express as px
 
+st.sidebar.title("🔧 Options")
+
+# --- Choose chart type ---
+chart_type = st.sidebar.selectbox("Select chart type", ["Line", "Bar"])
+
+# --- Date inputs ---
+st.sidebar.subheader("Select Date Range")
+start_date = st.sidebar.date_input("From Date", date.today() - pd.Timedelta(days=365))
+end_date = st.sidebar.date_input("To Date", date.today())
+if st.sidebar.button("Today"):
+    end_date = date.today()
+
 st.set_page_config(page_title="Political Tension Index", layout="wide")
 st.title("Political Tension Index (0–100 Scale)")
 
@@ -11,88 +23,68 @@ st.title("Political Tension Index (0–100 Scale)")
 csv_url = "https://raw.githubusercontent.com/alparody/GeopoliticalTensionIndex/refs/heads/main/stocks_weights.csv"
 df = pd.read_csv(csv_url)
 df["weight"] = df["weight"].astype(float)
-df["positive"] = df["positive"].astype(int)
-
-# --- Date inputs ---
-st.sidebar.header("Date Selection")
-col1, col2 = st.sidebar.columns(2)
-with col1:
-    start_date = st.date_input("From Date", date.today() - pd.Timedelta(days=365))
-with col2:
-    end_date = st.date_input("To Date", date.today())
-if st.sidebar.button("Today"):
-    start_date = date.today() - pd.Timedelta(days=365)
-    end_date = date.today()
-
-# --- Editable table for weights/positivity ---
-st.sidebar.header("Edit Symbols")
-edited_df = st.sidebar.data_editor(df, num_rows="dynamic")
 
 # --- Cache data fetch ---
 @st.cache_data(show_spinner=False)
 def get_data(symbols, start, end):
-    data = yf.download(
+    return yf.download(
         symbols,
         start=start,
         end=end,
         auto_adjust=True,
         progress=False,
-    )
-    return data["Close"].dropna(how="all", axis=1)
+    )["Close"].dropna(how="all", axis=1)
 
 with st.spinner("Fetching market data…"):
-    raw_data = get_data(edited_df["symbol"].tolist(), start_date, end_date)
+    data = get_data(df["symbol"].tolist(), start_date, end_date)
 
-if raw_data is None or raw_data.empty:
-    st.error("No price data returned for the selected period.")
+if data is None or data.empty:
+    st.error("No price data was returned for the selected period.")
     st.stop()
 
 # --- Compute returns ---
-returns = raw_data.pct_change().dropna(how="all")
+returns = data.pct_change(fill_method=None).dropna(how="all")
 
-# --- Filter available symbols ---
-available_symbols = [s for s in edited_df["symbol"] if s in returns.columns]
-missing_symbols = [s for s in edited_df["symbol"] if s not in returns.columns]
+# --- Filter missing symbols ---
+available = [s for s in df["symbol"] if s in returns.columns]
+missing = [s for s in df["symbol"] if s not in returns.columns]
+df = df[df["symbol"].isin(available)].copy()
+returns = returns[available]
 
-if missing_symbols:
-    st.warning(f"Missing data for symbols: {', '.join(missing_symbols)}. They will be excluded.")
-
-edited_df = edited_df[edited_df["symbol"].isin(available_symbols)]
-returns = returns[available_symbols]
-
-# --- Weighted returns ---
-total_weight = edited_df["weight"].sum()
+# --- Weighted returns (sign-adjusted, normalized) ---
+total_weight = df["weight"].sum()
 weighted = pd.DataFrame(index=returns.index)
-for _, row in edited_df.iterrows():
-    symbol = row["symbol"]
-    sign = 1 if row["positive"] == 1 else -1
-    weighted[symbol] = returns[symbol] * (row["weight"] / total_weight) * sign
+for _, row in df.iterrows():
+    sign = 1 if int(row["positive"]) == 1 else -1
+    weighted[row["symbol"]] = returns[row["symbol"]] * (row["weight"] / total_weight) * sign
 
-# --- Cumulative index ---
+# --- Build cumulative index then scale to 0–100 ---
 index_series = weighted.sum(axis=1).cumsum()
 min_v, max_v = index_series.min(), index_series.max()
-index_pct = (index_series - min_v) / (max_v - min_v) * 100 if max_v != min_v else pd.Series(50.0, index=index_series.index)
+index_pct = (index_series - min_v) / (max_v - min_v) * 100.0 if max_v != min_v else pd.Series(50.0, index=index_series.index)
 
 # --- Today's index value ---
 today_pct = float(index_pct.iloc[-1])
 color = "green" if today_pct >= 70 else "orange" if today_pct >= 40 else "red"
+
 st.markdown(f"### Today's Index: **{today_pct:.2f}%**")
 st.markdown(f"<h2 style='color:{color};'>■</h2>", unsafe_allow_html=True)
 
-# --- Line chart ---
-st.line_chart(index_pct, height=280)
+# --- Charts ---
+if chart_type == "Line":
+    st.line_chart(index_pct, height=280)
+else:  # Bar
+    st.bar_chart(index_pct, height=280)
 
-# --- Contributions ---
-contrib = weighted.iloc[-1].sort_values()
-fig = px.bar(
-    contrib,
-    title="Today's Contributions",
-    orientation="h",
-    labels={"value": "Contribution", "index": "Symbol"},
-    color=contrib.values,
-    color_continuous_scale="RdYlGn",
-)
-st.plotly_chart(fig, use_container_width=True)
+# --- Diagnostics ---
+with st.expander("Data diagnostics"):
+    if missing:
+        st.warning(
+            f"Missing data for {len(missing)} symbol(s): {', '.join(missing)}. "
+            "They were excluded from the index."
+        )
+    else:
+        st.write("All symbols fetched successfully.")
 
 # --- Download button ---
 st.download_button(
