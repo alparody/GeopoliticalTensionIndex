@@ -5,8 +5,6 @@ import matplotlib.pyplot as plt
 import streamlit as st
 from datetime import datetime
 
-st.set_option('deprecation.showPyplotGlobalUse', False)
-
 # --- Default event periods (name: (start, end)) ---
 DEFAULT_PERIODS = {
     "Russia-Ukraine invasion (early)": ("2022-02-24", "2022-05-31"),
@@ -25,27 +23,22 @@ def safe_download(symbols, start, end):
         if "Close" in raw:
             data = raw["Close"]
         else:
-            # try last level assuming it's price-like
             data = raw.iloc[:, raw.shape[1]//2 : raw.shape[1]//2 + len(symbols)]
     else:
-        # raw might already be a DataFrame with Close column or a Series
         if "Close" in raw:
             data = raw["Close"]
         else:
             data = raw
-    # ensure DataFrame
     if isinstance(data, pd.Series):
         data = data.to_frame()
     return data
 
 def max_drawdown(series):
-    # series: price series
     roll_max = series.cummax()
     drawdown = (series - roll_max) / roll_max
     return drawdown.min()
 
 def compute_stats(index_series):
-    # index_series: price-like starting ~100
     returns = index_series.pct_change().dropna()
     stats = {
         "mean_daily_return": returns.mean(),
@@ -60,10 +53,6 @@ def compute_stats(index_series):
 
 # --- Main function ---
 def run_gti_test(periods=None, lookback_months=6):
-    """
-    periods: dict of name -> (start_str, end_str). If None use DEFAULT_PERIODS.
-    lookback_months ignored here (kept for UI compatibility).
-    """
     try:
         periods = periods or DEFAULT_PERIODS
 
@@ -71,7 +60,7 @@ def run_gti_test(periods=None, lookback_months=6):
         weights_file = "stocks_weights.csv"
         df = pd.read_csv(weights_file)
         df = df.rename(columns={c: c.strip() for c in df.columns})
-        # required columns: symbol, weight, positive
+
         if not {"symbol", "weight", "positive"}.issubset(set(df.columns)):
             st.error("CSV must contain columns: symbol, weight, positive")
             return
@@ -89,8 +78,7 @@ def run_gti_test(periods=None, lookback_months=6):
         bench_symbols = ["^VIX", "GC=F"]
         fetch_symbols = sorted(set(original_symbols + bench_symbols))
 
-        # Pre-download a broad period covering all requested windows to avoid repeated downloads
-        # compute global start = min period start - 5 days, end = max period end + 1 day
+        # pre-download full period
         starts = [pd.to_datetime(s[0]) for s in periods.values()]
         ends = [pd.to_datetime(s[1]) for s in periods.values()]
         global_start = min(starts) - pd.Timedelta(days=7)
@@ -103,43 +91,37 @@ def run_gti_test(periods=None, lookback_months=6):
             st.error("No price data returned from Yahoo Finance. Check symbols or network.")
             return
 
-        # clean
         data = data.dropna(how="all").ffill().bfill()
 
-        # identify available symbols and warn for missing
         available = [c for c in data.columns if c in fetch_symbols]
         missing = sorted(set(fetch_symbols) - set(available))
         if missing:
             st.warning(f"Missing symbols (no data) and will be excluded: {', '.join(missing)}")
 
-        # align df to available symbols (exclude benches if missing)
         available_original = [s for s in original_symbols if s in available]
         if not available_original:
             st.error("No overlap between CSV symbols and fetched data.")
             return
 
         df = df[df["symbol"].isin(available_original)].copy()
-        # returns for all available symbols
         returns = data[available].pct_change(fill_method=None).dropna(how="all").ffill().bfill()
 
-        # prepare signed normalized weights aligned with returns columns
+        # signed normalized weights
         w = df.set_index("symbol")["weight"]
         w = w / w.sum()
         sign = df.set_index("symbol")["positive"].map(lambda x: 1 if int(x) == 1 else -1)
         signed_w = (w * sign).reindex(returns.columns).fillna(0)
 
-        # Compute GTI returns and index (start 100)
+        # GTI returns/index
         gti_ret = (returns * signed_w).sum(axis=1)
         gti_index = 100 * (1 + gti_ret).cumprod()
 
-        # Container for period stats
         rows = []
 
         st.write("### Results by period")
         for name, (start_str, end_str) in periods.items():
             start = pd.to_datetime(start_str)
             end = pd.to_datetime(end_str)
-            # clip GTI and benchmarks to period
             mask = (gti_index.index >= start) & (gti_index.index <= end)
             if mask.sum() < 2:
                 st.warning(f"Period {name} has insufficient data ({mask.sum()} points). Skipping.")
@@ -148,23 +130,18 @@ def run_gti_test(periods=None, lookback_months=6):
             gti_period = gti_index.loc[mask].dropna()
             stats, gti_returns = compute_stats(gti_period)
 
-            # prepare benchmark returns (VIX and Gold) if available in returns
-            bench_stats = {}
             correlations = {}
             for bench in bench_symbols:
                 if bench in returns.columns:
                     bench_ret = returns.loc[mask, bench].dropna()
-                    # align indices
                     joined = pd.concat([gti_returns, bench_ret.reindex(gti_returns.index)], axis=1).dropna()
                     if not joined.empty:
-                        corr = joined.iloc[:, 0].corr(joined.iloc[:, 1])
-                        correlations[f"corr_with_{bench}"] = corr
+                        correlations[f"corr_with_{bench}"] = joined.iloc[:, 0].corr(joined.iloc[:, 1])
                     else:
                         correlations[f"corr_with_{bench}"] = np.nan
                 else:
                     correlations[f"corr_with_{bench}"] = np.nan
 
-            # store row
             row = {
                 "period": name,
                 "start": start_str,
@@ -174,14 +151,12 @@ def run_gti_test(periods=None, lookback_months=6):
             }
             rows.append(row)
 
-            # plotting each period
             st.write(f"#### {name} — {start_str} → {end_str}")
             fig, ax = plt.subplots(2, 1, figsize=(10, 6), sharex=True,
                                    gridspec_kw={"height_ratios": [2, 1]})
-            # top: indices (GTI, S&P, VIX, Gold if available)
+
             gti_period.plot(ax=ax[0], label="GTI (index)", linewidth=2)
-            # plot normalized S&P and VIX / Gold
-            # derive normalized price series starting at 100
+
             if "^GSPC" in data.columns:
                 sp = 100 * data["^GSPC"].loc[start:end] / data["^GSPC"].loc[start:end].iloc[0]
                 sp.plot(ax=ax[0], label="S&P500 (norm)", alpha=0.8)
@@ -195,13 +170,13 @@ def run_gti_test(periods=None, lookback_months=6):
             ax[0].legend()
             ax[0].set_ylabel("Index / Normalized Price")
 
-            # bottom: bar chart of last-day contributions (signed weights * last return)
             last_ret = returns.loc[start:end].iloc[-1]
             contrib = (last_ret * signed_w.reindex(last_ret.index).fillna(0)).sort_values()
             contrib.plot(kind="barh", ax=ax[1])
             ax[1].set_xlabel("Today's weighted contribution (signed)")
 
-        # summary table
+            st.pyplot(fig)
+
         if rows:
             summary_df = pd.DataFrame(rows)
             st.write("### Summary statistics across tested periods")
@@ -213,7 +188,6 @@ def run_gti_test(periods=None, lookback_months=6):
                 "corr_with_GC=F": "{:.4f}"
             }), use_container_width=True)
 
-            # download CSV
             st.download_button(
                 label="Download test summary (CSV)",
                 data=summary_df.to_csv(index=False).encode("utf-8"),
