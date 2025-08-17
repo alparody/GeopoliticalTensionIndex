@@ -200,7 +200,6 @@ def run_gti_test(periods=None, lookback_months=6):
             contrib = (last_ret * signed_w.reindex(last_ret.index).fillna(0)).sort_values()
             contrib.plot(kind="barh", ax=ax[1])
             ax[1].set_xlabel("Today's weighted contribution (signed)")
-            st.pyplot(fig)
 
         # summary table
         if rows:
