@@ -4,17 +4,7 @@ import yfinance as yf
 from datetime import date
 import plotly.express as px
 from gti_test import run_gti_test
-import streamlit as st
 
-st.title("Geopolitical Tension Index - Test")
-
-try:
-    result = run_gti_test()
-    st.write("نتائج اختبار الأوزان:")
-    st.dataframe(result)
-except Exception as e:
-    st.error(f"Error: {e}")
-    
 st.sidebar.title("🔧 Testing Tools")
 
 if st.sidebar.button("Run GTI Test"):
