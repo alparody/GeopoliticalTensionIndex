@@ -17,7 +17,7 @@ JPY=X,USD/JPY,4,0
 CHF=X,USD/CHF,3,0
 DX-Y.NYB,Dollar Index,3,0
 ^TNX,US 10Y Treasury Yield,3,0
-DE10Y,Germany 10Y Bund,5,0
+SYBV.DE,Germany 10Y Bund,5,0
 ^GSPC,S&P 500 Index,3,0
 EEM,MSCI Emerging Markets,2,0
 ^VIX,VIX Volatility Index,20,1
