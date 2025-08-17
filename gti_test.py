@@ -7,7 +7,7 @@ import streamlit as st
 def run_gti_test():
     try:
         # تحميل ملف الأوزان
-        weights_df = pd.read_csv("weights.csv")
+        weights_df = pd.read_csv("stocks_weights.csv")
 
         # استخراج الرموز والأوزان
         symbols = weights_df["Symbol"].tolist()
