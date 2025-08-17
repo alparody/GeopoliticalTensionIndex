@@ -8,7 +8,7 @@ import gti_test
 st.sidebar.title("🔧 Testing Tools")
 
 if st.sidebar.button("Run GTI Test"):
-    run_gti_test()
+    gti_test
 
 st.set_page_config(page_title="Political Tension Index", layout="wide")
 st.title("Political Tension Index (0–100 Scale)")
