@@ -3,7 +3,7 @@ import pandas as pd
 import yfinance as yf
 from datetime import date
 import plotly.express as px
-from gti_test import run_gti_test
+import gti_test
 
 st.sidebar.title("🔧 Testing Tools")
 
