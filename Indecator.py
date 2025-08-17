@@ -1,31 +1,37 @@
 import streamlit as st
 import pandas as pd
 import yfinance as yf
-from datetime import date
+from datetime import date, timedelta
 import plotly.express as px
 
 st.set_page_config(page_title="Political Tension Index", layout="wide")
 st.title("Political Tension Index (0–100 Scale)")
+
+# --- Sidebar ---
+st.sidebar.title("🔧 Testing Tools")
 
 # --- Load CSV ---
 csv_url = "https://raw.githubusercontent.com/alparody/GeopoliticalTensionIndex/refs/heads/main/stocks_weights.csv"
 df = pd.read_csv(csv_url)
 df["weight"] = df["weight"].astype(float)
 
-# --- Sidebar: Date selection with 'Today' button ---
-st.sidebar.title("🔧 Settings")
-default_start = date.today() - pd.Timedelta(days=365)
-default_end = date.today()
+# --- Date inputs ---
+col1, col2 = st.sidebar.columns(2)
+with col1:
+    st.sidebar.markdown("**From Date**")
+    start_date_input = st.sidebar.date_input(" ", value=date.today() - timedelta(days=365), key="start_input")
+with col2:
+    st.sidebar.markdown("**To Date**")
+    end_date_input = st.sidebar.date_input(" ", value=date.today(), key="end_input")
 
-with st.sidebar:
-    st.date_input("From Date", default_start, key="start")
-    st.date_input("To Date", default_end, key="end")
-    
-    # زر Today في سطر جديد
-    if st.button("Today"):
-        st.session_state["start"] = default_start
-        st.session_state["end"] = default_end
-        st.experimental_rerun()
+# زر Today في سطر جديد
+if st.sidebar.button("Today"):
+    st.session_state.start_input = date.today() - timedelta(days=365)
+    st.session_state.end_input = date.today()
+    st.experimental_rerun()
+
+start_date = st.session_state.start_input
+end_date = st.session_state.end_input
 
 # --- Cache data fetch ---
 @st.cache_data(show_spinner=False)
@@ -62,6 +68,7 @@ returns = returns[available]
 # --- Weighted returns (sign-adjusted, normalized) ---
 total_weight = df["weight"].sum()
 weighted = pd.DataFrame(index=returns.index)
+
 for _, row in df.iterrows():
     sign = 1 if int(row["positive"]) == 1 else -1
     weighted[row["symbol"]] = returns[row["symbol"]] * (row["weight"] / total_weight) * sign
@@ -69,21 +76,22 @@ for _, row in df.iterrows():
 # --- Build cumulative index then scale to 0–100 ---
 index_series = weighted.sum(axis=1).cumsum()
 min_v, max_v = index_series.min(), index_series.max()
+
 if max_v == min_v:
     index_pct = pd.Series(50.0, index=index_series.index)
 else:
     index_pct = (index_series - min_v) / (max_v - min_v) * 100.0
 
-# --- Chart for the index ---
-st.line_chart(index_pct, height=280)
-
 # --- Today's index value ---
 today_pct = float(index_pct.iloc[-1])
 color = "green" if today_pct >= 70 else "orange" if today_pct >= 40 else "red"
+
 st.markdown(f"### Today's Index: **{today_pct:.2f}%**")
 st.markdown(f"<h2 style='color:{color};'>■</h2>", unsafe_allow_html=True)
 
-# --- Contributions ---
+# --- Charts ---
+st.line_chart(index_pct, height=280)
+
 contrib = weighted.iloc[-1].sort_values()
 fig = px.bar(
     contrib,
