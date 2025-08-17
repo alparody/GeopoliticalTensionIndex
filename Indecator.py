@@ -1,100 +1,119 @@
 import streamlit as st
 import pandas as pd
-import yfinance as yf
-from datetime import date
-import plotly.express as px
 import numpy as np
-from scipy.stats import zscore
+import yfinance as yf
+import plotly.express as px
+from datetime import date
 
 st.set_page_config(page_title="Geopolitical Tension Index", layout="wide")
-st.title("Political Tension Index (0–100 Scale)")
+st.title("Geopolitical Tension Index (0–100 Scale)")
 
-# --- Sidebar: Date Selection ---
-st.sidebar.header("Date Range")
+# -------------------------------
+# Sidebar: Date range and restore
+# -------------------------------
+st.sidebar.header("📅 Date Selection")
 col1, col2 = st.sidebar.columns(2)
 with col1:
     start_date = st.date_input("From Date", date.today() - pd.Timedelta(days=365))
 with col2:
     end_date = st.date_input("To Date", date.today())
-if st.sidebar.button("Restore Today"):
+
+if st.sidebar.button("Restore Default Dates"):
     start_date = date.today() - pd.Timedelta(days=365)
     end_date = date.today()
 
-# --- Sidebar: Optional Indicators ---
-st.sidebar.header("Optional Indicators")
-show_vix = st.sidebar.checkbox("Show VIX", value=True)
-show_move = st.sidebar.checkbox("Show MOVE Index", value=True)
-show_gold_vol = st.sidebar.checkbox("Show Gold Volatility", value=True)
+# -------------------------------
+# Sidebar: Chart options
+# -------------------------------
+chart_type = st.sidebar.selectbox("Chart Type", ["Line", "Bar"])
+st.sidebar.header("📊 Show/Hide Additional Indices")
+show_SPY = st.sidebar.checkbox("SPY", value=True)
+show_SP_Global = st.sidebar.checkbox("S&P Global", value=True)
+show_MSCI = st.sidebar.checkbox("MSCI World", value=True)
+show_VIX = st.sidebar.checkbox("VIX", value=True)
+show_MOVE = st.sidebar.checkbox("MOVE Index", value=True)
+show_GoldVol = st.sidebar.checkbox("Gold Volatility", value=True)
 
-# --- Sidebar: Chart type ---
-chart_type = st.sidebar.radio("Chart Type", ["Line", "Bar"])
-
-# --- Load stock weights ---
+# -------------------------------
+# Load stock weights (editable)
+# -------------------------------
 weights_df = pd.read_csv("stocks_weights.csv")
-weights_df["weight"] = weights_df["weight"].astype(float)
-weights_df_default = weights_df.copy()
+weights_df["full_name"] = weights_df["symbol"]  # placeholder, can add descriptive names
 
-# --- Editable table for weights ---
-st.sidebar.header("Adjust Weights/Sign")
-edited_weights = st.experimental_data_editor(weights_df, num_rows="dynamic")
+st.subheader("Adjust Weights and Sign")
+weights_df = st.data_editor(weights_df, num_rows="dynamic")
 
-if st.sidebar.button("Restore Default Weights"):
-    edited_weights = weights_df_default.copy()
+if st.button("Restore Default Weights"):
+    weights_df = pd.read_csv("stocks_weights.csv")
+    weights_df["full_name"] = weights_df["symbol"]
 
-# --- Fetch data from Yahoo ---
-@st.cache_data(show_spinner=False)
-def get_data(symbols, start, end):
-    return yf.download(symbols, start=start, end=end, auto_adjust=True, progress=False)["Close"].dropna(how="all", axis=1)
-
-data = get_data(edited_weights["symbol"].tolist(), start_date, end_date)
+# -------------------------------
+# Fetch market data
+# -------------------------------
+symbols = weights_df["symbol"].tolist()
+with st.spinner("Fetching market data…"):
+    data = yf.download(symbols, start=start_date, end=end_date, auto_adjust=True)["Close"].dropna(how="all", axis=1)
 
 if data.empty:
-    st.error("No data returned for selected period.")
+    st.error("No price data returned for the selected period.")
     st.stop()
 
-# --- Compute daily returns ---
+# -------------------------------
+# Compute returns and cumulative
+# -------------------------------
 returns = data.pct_change().dropna(how="all")
+# z-score normalization
+z_returns = (returns - returns.mean()) / returns.std()
 
-# --- Weighted returns using EWMA & z-score ---
-total_weight = edited_weights["weight"].sum()
-weighted = pd.DataFrame(index=returns.index)
-for _, row in edited_weights.iterrows():
-    symbol = row["symbol"]
-    if symbol in returns.columns:
-        sign = 1 if int(row["positive"]) == 1 else -1
-        daily = returns[symbol].ewm(span=5).mean()  # EWMA
-        weighted[symbol] = zscore(daily) * (row["weight"] / total_weight) * sign
+# Weighted sum with sign
+total_weight = weights_df["weight"].sum()
+weighted = pd.DataFrame(index=z_returns.index)
+for _, row in weights_df.iterrows():
+    sign = 1 if int(row["positive"]) == 1 else -1
+    if row["symbol"] in z_returns.columns:
+        weighted[row["symbol"]] = z_returns[row["symbol"]] * (row["weight"] / total_weight) * sign
 
-# --- Cumulative index and scale 0–100 ---
+# EWMA smoothing
+weighted = weighted.ewm(span=10).mean()
 index_series = weighted.sum(axis=1).cumsum()
+
+# Scale 0-100
 min_v, max_v = index_series.min(), index_series.max()
-if max_v == min_v:
-    index_pct = pd.Series(50.0, index=index_series.index)
-else:
-    index_pct = (index_series - min_v) / (max_v - min_v) * 100.0
+index_pct = (index_series - min_v) / (max_v - min_v) * 100 if max_v != min_v else pd.Series(50.0, index=index_series.index)
 
-# --- Optional indicators ---
-optional_indicators = pd.DataFrame(index=returns.index)
-if show_vix and "^VIX" in returns.columns:
-    optional_indicators["VIX"] = returns["^VIX"].ewm(span=5).mean().cumsum()
-if show_move and "MOVE" in returns.columns:
-    optional_indicators["MOVE"] = returns["MOVE"].ewm(span=5).mean().cumsum()
-if show_gold_vol and "GC=F" in returns.columns:
-    optional_indicators["Gold Volatility"] = returns["GC=F"].rolling(5).std().fillna(0).cumsum()
+# -------------------------------
+# Prepare plot dataframe
+# -------------------------------
+plot_df = pd.DataFrame({"GTI": index_pct})
+if show_SPY and "SPY" in returns.columns: plot_df["SPY"] = returns["SPY"].cumsum()
+if show_SP_Global and "^GSPC" in returns.columns: plot_df["S&P Global"] = returns["^GSPC"].cumsum()
+if show_MSCI and "EEM" in returns.columns: plot_df["MSCI World"] = returns["EEM"].cumsum()
+if show_VIX and "^VIX" in returns.columns: plot_df["VIX"] = returns["^VIX"].cumsum()
+if show_MOVE and "MOVE" in returns.columns: plot_df["MOVE Index"] = returns["MOVE"].cumsum()
+if show_GoldVol and "GC=F" in returns.columns: plot_df["Gold Volatility"] = returns["GC=F"].cumsum()
 
-# --- Plotting ---
-plot_df = pd.concat([index_pct, optional_indicators], axis=1)
+# -------------------------------
+# Plot
+# -------------------------------
+st.subheader("Index Chart")
 if chart_type == "Line":
-    st.line_chart(plot_df, height=300)
+    st.line_chart(plot_df)
 else:
-    st.bar_chart(plot_df, height=300)
+    st.bar_chart(plot_df)
 
-# --- Show Today's Index ---
-today_pct = float(index_pct.iloc[-1])
-color = "green" if today_pct >= 70 else "orange" if today_pct >= 40 else "red"
-st.markdown(f"### Today's Index: **{today_pct:.2f}%**")
-st.markdown(f"<h2 style='color:{color};'>■</h2>", unsafe_allow_html=True)
+# -------------------------------
+# Show editable weights table below the chart
+# -------------------------------
+st.subheader("Stock Weights Table")
+st.dataframe(weights_df)
 
-# --- Table of edited weights below chart ---
-st.subheader("Stocks Weights & Signs")
-st.dataframe(edited_weights, use_container_width=True)
+# -------------------------------
+# Performance metrics
+# -------------------------------
+st.subheader("Performance Metrics")
+metrics = {
+    "Final Index Value": float(index_pct.iloc[-1]),
+    "Index Volatility": float(returns.sum(axis=1).std()),
+    "Sharpe-like Ratio": float(returns.sum(axis=1).mean()/returns.sum(axis=1).std())
+}
+st.json(metrics)
