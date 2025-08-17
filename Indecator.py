@@ -1,114 +1,58 @@
-import streamlit as st
 import pandas as pd
-import yfinance as yf
-from datetime import date
-import plotly.express as px
-from gti_test import run_gti_test
+import matplotlib.pyplot as plt
 
-st.sidebar.title("🔧 Testing Tools")
+# مثال: افترض إن عندك DataFrame اسمه df فيه عمود التاريخ causality_index
+# df = pd.read_csv("causality_results.csv", parse_dates=["date"])
 
-if st.sidebar.button("Run GTI Test"):
-    run_gti_test()
+# ✅ قائمة فترات الأزمات
+periods = [
+    {"name": "Russia-Ukraine invasion (early)", "start": "2022-02-24", "end": "2022-05-31"},
+    {"name": "Israel-Hamas (Oct 2023)", "start": "2023-10-07", "end": "2023-12-15"},
+    {"name": "Global market shock (Mar 2020)", "start": "2020-02-15", "end": "2020-05-31"},
+    {"name": "Global Financial Crisis (2008)", "start": "2008-09-01", "end": "2009-03-31"},
+    {"name": "Eurozone Debt Crisis (2011)", "start": "2011-06-01", "end": "2012-01-31"},
+    {"name": "Brexit shock (2016)", "start": "2016-06-01", "end": "2016-09-30"},
+    {"name": "US Elections (2020)", "start": "2020-10-01", "end": "2020-12-31"},
+    {"name": "Inflation & Fed Rate Hikes (2022)", "start": "2022-06-01", "end": "2022-12-31"},
+    {"name": "SVB Banking Crisis (2023)", "start": "2023-03-01", "end": "2023-05-31"},
+]
 
-st.set_page_config(page_title="Political Tension Index", layout="wide")
-st.title("Political Tension Index (0–100 Scale)")
+# ✅ دالة للتحليل داخل الفترات
+results = []
+for p in periods:
+    mask = (df["date"] >= p["start"]) & (df["date"] <= p["end"])
+    sub = df.loc[mask]
 
-# --- Load CSV ---
-csv_url = "https://raw.githubusercontent.com/alparody/GeopoliticalTensionIndex/refs/heads/main/stocks_weights.csv"
-df = pd.read_csv(csv_url)
-df["weight"] = df["weight"].astype(float)
+    if not sub.empty:
+        avg_val = sub["causality_index"].mean()
+        std_val = sub["causality_index"].std()
+        results.append({
+            "Period": p["name"],
+            "Start": p["start"],
+            "End": p["end"],
+            "Mean Causality": round(avg_val, 4),
+            "Std Dev": round(std_val, 4),
+            "Data Points": len(sub)
+        })
 
-# --- Date inputs ---
-col1, col2 = st.columns(2)
-with col1:
-    start_date = st.date_input("From Date", date.today() - pd.Timedelta(days=365))
-with col2:
-    end_date = st.date_input("To Date", date.today())
+# ✅ نحول النتائج لجدول DataFrame
+results_df = pd.DataFrame(results)
 
-# --- Cache data fetch ---
-@st.cache_data(show_spinner=False)
-def get_data(symbols, start, end):
-    return yf.download(
-        symbols,
-        start=start,
-        end=end,
-        auto_adjust=True,
-        progress=False,
-    )["Close"].dropna(how="all", axis=1)
+# نعرض النتائج
+print("\n=== Causality Backtest Results ===\n")
+print(results_df.to_string(index=False))
 
-with st.spinner("Fetching market data…"):
-    data = get_data(df["symbol"].tolist(), start_date, end_date)
+# ✅ رسم بياني يوضح المؤشر مع الفترات
+plt.figure(figsize=(14,6))
+plt.plot(df["date"], df["causality_index"], label="Causality Index", color="blue")
 
-if data is None or data.empty:
-    st.error("No price data was returned for the selected period.")
-    st.stop()
+# تظليل الفترات
+for p in periods:
+    plt.axvspan(pd.to_datetime(p["start"]), pd.to_datetime(p["end"]),
+                color="red", alpha=0.2, label=p["name"])
 
-# --- Compute returns ---
-returns = data.pct_change(fill_method=None).dropna(how="all")
-
-# --- Filter missing symbols ---
-available = [s for s in df["symbol"] if s in returns.columns]
-missing = [s for s in df["symbol"] if s not in returns.columns]
-df = df[df["symbol"].isin(available)].copy()
-
-if df.empty:
-    st.error("All symbols are missing data after filtering. Please check your CSV.")
-    st.stop()
-
-returns = returns[available]
-
-# --- Weighted returns (sign-adjusted, normalized) ---
-total_weight = df["weight"].sum()
-weighted = pd.DataFrame(index=returns.index)
-
-for _, row in df.iterrows():
-    sign = 1 if int(row["positive"]) == 1 else -1
-    weighted[row["symbol"]] = returns[row["symbol"]] * (row["weight"] / total_weight) * sign
-
-# --- Build cumulative index then scale to 0–100 ---
-index_series = weighted.sum(axis=1).cumsum()
-min_v, max_v = index_series.min(), index_series.max()
-
-if max_v == min_v:
-    index_pct = pd.Series(50.0, index=index_series.index)
-else:
-    index_pct = (index_series - min_v) / (max_v - min_v) * 100.0
-
-# --- Today's index value ---
-today_pct = float(index_pct.iloc[-1])
-color = "green" if today_pct >= 70 else "orange" if today_pct >= 40 else "red"
-
-st.markdown(f"### Today's Index: **{today_pct:.2f}%**")
-st.markdown(f"<h2 style='color:{color};'>■</h2>", unsafe_allow_html=True)
-
-# --- Charts ---
-st.line_chart(index_pct, height=280)
-
-contrib = weighted.iloc[-1].sort_values()
-fig = px.bar(
-    contrib,
-    title="Today's Contributions",
-    orientation="h",
-    labels={"value": "Contribution", "index": "Symbol"},
-    color=contrib.values,
-    color_continuous_scale="RdYlGn",
-)
-st.plotly_chart(fig, use_container_width=True)
-
-# --- Diagnostics ---
-with st.expander("Data diagnostics"):
-    if missing:
-        st.warning(
-            f"Missing data for {len(missing)} symbol(s): {', '.join(missing)}. "
-            "They were excluded from the index."
-        )
-    else:
-        st.write("All symbols fetched successfully.")
-
-# --- Download button ---
-st.download_button(
-    label="Download Index Data (0–100)",
-    data=index_pct.to_csv().encode("utf-8"),
-    file_name="geopolitical_index.csv",
-    mime="text/csv",
-)
+plt.title("Causality Index with Crisis Periods")
+plt.xlabel("Date")
+plt.ylabel("Causality Index")
+plt.legend(loc="upper right", fontsize=8)
+plt.show()
