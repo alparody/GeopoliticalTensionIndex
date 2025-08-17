@@ -1,122 +1,62 @@
 import streamlit as st
 import pandas as pd
 import yfinance as yf
-from datetime import date, timedelta
 import plotly.express as px
+from datetime import date
 
-st.set_page_config(page_title="Political Tension Index", layout="wide")
-st.title("Political Tension Index (0–100 Scale)")
+st.set_page_config(page_title="Interactive GTI Editor", layout="wide")
+st.title("Interactive Geopolitical Tension Index Editor")
 
-# --- Sidebar ---
-st.sidebar.title("🔧 Testing Tools")
-
-# --- Load CSV ---
+# --- Load default CSV ---
 csv_url = "https://raw.githubusercontent.com/alparody/GeopoliticalTensionIndex/refs/heads/main/stocks_weights.csv"
-df = pd.read_csv(csv_url)
-df["weight"] = df["weight"].astype(float)
+default_df = pd.read_csv(csv_url)
+default_df["weight"] = default_df["weight"].astype(float)
+default_df["positive"] = default_df["positive"].astype(int)
+
+# --- Editable data editor ---
+st.subheader("Edit Weights and Signs")
+edited_df = st.data_editor(default_df, num_rows="dynamic")
 
 # --- Date inputs ---
-col1, col2 = st.sidebar.columns(2)
+col1, col2, col3 = st.columns([2,2,1])
 with col1:
-    st.sidebar.markdown("**From Date**")
-    start_date_input = st.sidebar.date_input(" ", value=date.today() - timedelta(days=365), key="start_input")
+    start_date = st.date_input("From Date", date.today() - pd.Timedelta(days=365))
 with col2:
-    st.sidebar.markdown("**To Date**")
-    end_date_input = st.sidebar.date_input(" ", value=date.today(), key="end_input")
+    end_date = st.date_input("To Date", date.today())
+with col3:
+    if st.button("Today"):
+        start_date = date.today() - pd.Timedelta(days=365)
+        end_date = date.today()
 
-# زر Today في سطر جديد
-if st.sidebar.button("Today"):
-    st.session_state.start_input = date.today() - timedelta(days=365)
-    st.session_state.end_input = date.today()
-    st.experimental_rerun()
-
-start_date = st.session_state.start_input
-end_date = st.session_state.end_input
-
-# --- Cache data fetch ---
+# --- Fetch market data ---
 @st.cache_data(show_spinner=False)
 def get_data(symbols, start, end):
-    return yf.download(
-        symbols,
-        start=start,
-        end=end,
-        auto_adjust=True,
-        progress=False,
-    )["Close"].dropna(how="all", axis=1)
+    data = yf.download(symbols, start=start, end=end, auto_adjust=True, progress=False)
+    return data["Close"].dropna(how="all", axis=1)
 
+symbols = edited_df["symbol"].tolist()
 with st.spinner("Fetching market data…"):
-    data = get_data(df["symbol"].tolist(), start_date, end_date)
+    data = get_data(symbols, start_date, end_date)
 
 if data is None or data.empty:
-    st.error("No price data was returned for the selected period.")
+    st.error("No price data returned for selected period.")
     st.stop()
 
-# --- Compute returns ---
-returns = data.pct_change(fill_method=None).dropna(how="all")
-
-# --- Filter missing symbols ---
-available = [s for s in df["symbol"] if s in returns.columns]
-missing = [s for s in df["symbol"] if s not in returns.columns]
-df = df[df["symbol"].isin(available)].copy()
-
-if df.empty:
-    st.error("All symbols are missing data after filtering. Please check your CSV.")
-    st.stop()
-
-returns = returns[available]
-
-# --- Weighted returns (sign-adjusted, normalized) ---
-total_weight = df["weight"].sum()
+# --- Compute weighted returns ---
+returns = data.pct_change().dropna(how="all")
+total_weight = edited_df["weight"].sum()
 weighted = pd.DataFrame(index=returns.index)
+for _, row in edited_df.iterrows():
+    sign = 1 if row["positive"] == 1 else -1
+    weighted[row["symbol"]] = returns[row["symbol"]] * (row["weight"]/total_weight) * sign
 
-for _, row in df.iterrows():
-    sign = 1 if int(row["positive"]) == 1 else -1
-    weighted[row["symbol"]] = returns[row["symbol"]] * (row["weight"] / total_weight) * sign
-
-# --- Build cumulative index then scale to 0–100 ---
+# --- Build cumulative index ---
 index_series = weighted.sum(axis=1).cumsum()
 min_v, max_v = index_series.min(), index_series.max()
+index_pct = (index_series - min_v) / (max_v - min_v) * 100 if max_v != min_v else pd.Series(50.0, index=index_series.index)
 
-if max_v == min_v:
-    index_pct = pd.Series(50.0, index=index_series.index)
-else:
-    index_pct = (index_series - min_v) / (max_v - min_v) * 100.0
+# --- Display result ---
+st.subheader("Cumulative Index (0–100)")
+st.line_chart(index_pct, height=300)
 
-# --- Today's index value ---
-today_pct = float(index_pct.iloc[-1])
-color = "green" if today_pct >= 70 else "orange" if today_pct >= 40 else "red"
-
-st.markdown(f"### Today's Index: **{today_pct:.2f}%**")
-st.markdown(f"<h2 style='color:{color};'>■</h2>", unsafe_allow_html=True)
-
-# --- Charts ---
-st.line_chart(index_pct, height=280)
-
-contrib = weighted.iloc[-1].sort_values()
-fig = px.bar(
-    contrib,
-    title="Today's Contributions",
-    orientation="h",
-    labels={"value": "Contribution", "index": "Symbol"},
-    color=contrib.values,
-    color_continuous_scale="RdYlGn",
-)
-st.plotly_chart(fig, use_container_width=True)
-
-# --- Diagnostics ---
-with st.expander("Data diagnostics"):
-    if missing:
-        st.warning(
-            f"Missing data for {len(missing)} symbol(s): {', '.join(missing)}. "
-            "They were excluded from the index."
-        )
-    else:
-        st.write("All symbols fetched successfully.")
-
-# --- Download button ---
-st.download_button(
-    label="Download Index Data (0–100)",
-    data=index_pct.to_csv().encode("utf-8"),
-    file_name="geopolitical_index.csv",
-    mime="text/csv",
-)
+st.markdown(f"### Today's Index: **{index_pct.iloc[-1]:.2f}%**")
