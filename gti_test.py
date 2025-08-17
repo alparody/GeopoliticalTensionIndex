@@ -1,46 +1,44 @@
 import pandas as pd
 import yfinance as yf
 import matplotlib.pyplot as plt
+import streamlit as st
 
-# 1- قراءة ملف CSV
-weights_df = pd.read_csv("gti_weights.csv")
+# دالة لحساب ورسم مؤشر GTI
+def run_gti_test():
+    try:
+        # تحميل ملف الأوزان
+        weights_df = pd.read_csv("weights.csv")
 
-# 2- تنزيل البيانات التاريخية
-symbols = weights_df["symbol"].tolist()
-data = yf.download(symbols, start="2022-01-01", end="2025-01-01")["Adj Close"]
+        # استخراج الرموز والأوزان
+        symbols = weights_df["Symbol"].tolist()
+        weights = weights_df["Weight"].tolist()
 
-# 3- معالجة: ملء الفراغات
-data = data.fillna(method="ffill").fillna(method="bfill")
+        st.write("### 📊 GTI Test Run")
+        st.write("Using weights file with symbols:", symbols)
 
-# 4- حساب العائد اليومي لكل أصل
-returns = data.pct_change().fillna(0)
+        # تحميل البيانات من Yahoo Finance
+        data = yf.download(symbols, period="1mo")["Adj Close"]
 
-# 5- دمج مع الأوزان
-gti_series = pd.Series(0, index=returns.index)
+        # لو عمود واحد بيجي كـ Series، نخليه DataFrame
+        if isinstance(data, pd.Series):
+            data = data.to_frame()
 
-for _, row in weights_df.iterrows():
-    symbol, weight, positive = row["symbol"], row["weight"], row["positive"]
+        # حساب normalized returns
+        norm_data = data / data.iloc[0]
 
-    # تعديل الاتجاه: لو positive=0 يبقى سلبي (معكوس)
-    factor = 1 if positive == 1 else -1
+        # ضرب في الأوزان
+        weighted = norm_data.mul(weights, axis=1)
 
-    gti_series += weight * factor * returns[symbol]
+        # حساب المؤشر النهائي
+        gti = weighted.sum(axis=1)
 
-# 6- تطبيع (Normalization) علشان يبقى في Range معقول
-gti_index = (1 + gti_series.cumsum())
-gti_index = 100 * (gti_index / gti_index.iloc[0])  # يبدأ من 100
+        # رسم
+        fig, ax = plt.subplots(figsize=(10, 4))
+        gti.plot(ax=ax, label="GTI", color="blue")
+        ax.set_title("Geopolitical Tension Index (Test)")
+        ax.legend()
 
-# 7- مقارنة مع مؤشرات مرجعية (مثلاً S&P 500 و VIX)
-ref_symbols = ["^GSPC", "^VIX"]
-ref_data = yf.download(ref_symbols, start="2022-01-01", end="2025-01-01")["Adj Close"]
-ref_data = ref_data.fillna(method="ffill").fillna(method="bfill")
-ref_data = 100 * ref_data / ref_data.iloc[0]  # تطبيع برضه يبدأ من 100
+        st.pyplot(fig)
 
-# 8- رسم النتيجة
-plt.figure(figsize=(12, 6))
-plt.plot(gti_index, label="Geopolitical Tension Index (GTI)", linewidth=2)
-plt.plot(ref_data["^GSPC"], label="S&P 500 (normalized)", alpha=0.7)
-plt.plot(ref_data["^VIX"], label="VIX (normalized)", alpha=0.7)
-plt.legend()
-plt.title("Testing GTI vs S&P 500 and VIX")
-plt.show()
+    except Exception as e:
+        st.error(f"⚠️ Error running GTI test: {e}")
