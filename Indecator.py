@@ -3,117 +3,137 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 import plotly.express as px
-from datetime import date
+import plotly.graph_objects as go
+from datetime import date, timedelta
+import os
 
+# ---------------------- إعداد الصفحة ----------------------
 st.set_page_config(page_title="Geopolitical Tension Index", layout="wide")
-st.title("Geopolitical Tension Index (0–100 Scale)")
+st.title("Political Tension Index (0–100 Scale)")
 
-# -------------------------------
-# Sidebar: Date range and restore
-# -------------------------------
-st.sidebar.header("📅 Date Selection")
+# ---------------------- تحميل بيانات الأسهم والمؤشرات ----------------------
+# CSV الأصلي للـ weights مع الأعمدة: symbol, weight, positive, description
+weights_file = "stocks_weights.csv"
+default_weights = pd.read_csv(weights_file)
+weights_df = default_weights.copy()
+
+# ---------------------- Sidebar التواريخ ----------------------
+st.sidebar.header("📅 Select Date Range")
 col1, col2 = st.sidebar.columns(2)
 with col1:
-    start_date = st.date_input("From Date", date.today() - pd.Timedelta(days=365))
+    start_date = st.date_input("From", date.today() - timedelta(days=365))
 with col2:
-    end_date = st.date_input("To Date", date.today())
-
-if st.sidebar.button("Restore Default Dates"):
-    start_date = date.today() - pd.Timedelta(days=365)
+    end_date = st.date_input("To", date.today())
+if st.sidebar.button("Restore Today"):
+    start_date = date.today() - timedelta(days=365)
     end_date = date.today()
 
-# -------------------------------
-# Sidebar: Chart options
-# -------------------------------
-chart_type = st.sidebar.selectbox("Chart Type", ["Line", "Bar"])
-st.sidebar.header("📊 Show/Hide Additional Indices")
-show_SPY = st.sidebar.checkbox("SPY", value=True)
-show_SP_Global = st.sidebar.checkbox("S&P Global", value=True)
-show_MSCI = st.sidebar.checkbox("MSCI World", value=True)
-show_VIX = st.sidebar.checkbox("VIX", value=True)
-show_MOVE = st.sidebar.checkbox("MOVE Index", value=True)
-show_GoldVol = st.sidebar.checkbox("Gold Volatility", value=True)
+# ---------------------- Sidebar المؤشرات ----------------------
+st.sidebar.header("📈 Show Additional Indicators")
+show_SPY = st.sidebar.checkbox("SPY", True)
+show_SP_Global = st.sidebar.checkbox("S&P Global", True)
+show_MSCI = st.sidebar.checkbox("MSCI World", True)
+show_VIX = st.sidebar.checkbox("VIX", True)
+show_MOVE = st.sidebar.checkbox("MOVE Index", True)
+show_GoldVol = st.sidebar.checkbox("Gold Volatility", True)
 
-# -------------------------------
-# Load stock weights (editable)
-# -------------------------------
-weights_df = pd.read_csv("stocks_weights.csv")
-weights_df["full_name"] = weights_df["symbol"]  # placeholder, can add descriptive names
+# ---------------------- Sidebar الرسم ----------------------
+st.sidebar.header("📊 Chart Type")
+chart_type = st.sidebar.radio("Choose Chart Type", ["Line", "Bar"])
 
-st.subheader("Adjust Weights and Sign")
-weights_df = st.data_editor(weights_df, num_rows="dynamic")
+# ---------------------- Sidebar تعديل الأوزان ----------------------
+st.sidebar.header("⚖️ Edit Weights")
+st.sidebar.markdown("Edit the weight and sign (positive=1 / negative=0) and click Save.")
+edited_weights = st.sidebar.experimental_data_editor(weights_df, num_rows="dynamic")
 
-if st.button("Restore Default Weights"):
-    weights_df = pd.read_csv("stocks_weights.csv")
-    weights_df["full_name"] = weights_df["symbol"]
+# Restore Default
+if st.sidebar.button("Restore Default Weights"):
+    edited_weights = default_weights.copy()
 
-# -------------------------------
-# Fetch market data
-# -------------------------------
-symbols = weights_df["symbol"].tolist()
-with st.spinner("Fetching market data…"):
-    data = yf.download(symbols, start=start_date, end=end_date, auto_adjust=True)["Close"].dropna(how="all", axis=1)
+# ---------------------- حفظ التعديلات على GitHub ----------------------
+if st.sidebar.button("Save Weights to GitHub"):
+    token = st.secrets["GITHUB_TOKEN"]
+    import requests, base64, json
+    url = "https://api.github.com/repos/<username>/<repo>/contents/stocks_weights.csv"  # ضع بياناتك
+    csv_content = edited_weights.to_csv(index=False)
+    message = "Update weights via Streamlit"
+    content_bytes = base64.b64encode(csv_content.encode()).decode()
+    headers = {"Authorization": f"token {token}"}
+    r = requests.get(url, headers=headers)
+    sha = r.json()["sha"]
+    data = {"message": message, "content": content_bytes, "sha": sha}
+    resp = requests.put(url, headers=headers, data=json.dumps(data))
+    if resp.status_code == 200:
+        st.success("Weights saved to GitHub successfully!")
+    else:
+        st.error("Failed to save to GitHub.")
+
+# ---------------------- جلب بيانات السوق ----------------------
+symbols = edited_weights["symbol"].tolist()
+data = yf.download(symbols, start=start_date, end=end_date, auto_adjust=True, progress=False)["Close"].dropna(how="all")
 
 if data.empty:
-    st.error("No price data returned for the selected period.")
+    st.error("No data returned for selected symbols.")
     st.stop()
 
-# -------------------------------
-# Compute returns and cumulative
-# -------------------------------
-returns = data.pct_change().dropna(how="all")
-# z-score normalization
-z_returns = (returns - returns.mean()) / returns.std()
+# ---------------------- حساب المؤشر ----------------------
+weighted_returns = pd.DataFrame(index=data.index)
 
-# Weighted sum with sign
-total_weight = weights_df["weight"].sum()
-weighted = pd.DataFrame(index=z_returns.index)
-for _, row in weights_df.iterrows():
+# Normalize each asset (z-score)
+z_data = (data - data.mean()) / data.std()
+
+# EWMA returns
+returns = z_data.pct_change().ewm(span=10, adjust=False).mean()
+
+total_weight = edited_weights["weight"].sum()
+for _, row in edited_weights.iterrows():
     sign = 1 if int(row["positive"]) == 1 else -1
-    if row["symbol"] in z_returns.columns:
-        weighted[row["symbol"]] = z_returns[row["symbol"]] * (row["weight"] / total_weight) * sign
+    symbol = row["symbol"]
+    if symbol in returns.columns:
+        weighted_returns[symbol] = returns[symbol] * (row["weight"] / total_weight) * sign
 
-# EWMA smoothing
-weighted = weighted.ewm(span=10).mean()
-index_series = weighted.sum(axis=1).cumsum()
+# Cumulative sum
+index_series = weighted_returns.sum(axis=1).cumsum()
 
 # Scale 0-100
 min_v, max_v = index_series.min(), index_series.max()
-index_pct = (index_series - min_v) / (max_v - min_v) * 100 if max_v != min_v else pd.Series(50.0, index=index_series.index)
+index_pct = (index_series - min_v) / (max_v - min_v) * 100
 
-# -------------------------------
-# Prepare plot dataframe
-# -------------------------------
-plot_df = pd.DataFrame({"GTI": index_pct})
-if show_SPY and "SPY" in returns.columns: plot_df["SPY"] = returns["SPY"].cumsum()
-if show_SP_Global and "^GSPC" in returns.columns: plot_df["S&P Global"] = returns["^GSPC"].cumsum()
-if show_MSCI and "EEM" in returns.columns: plot_df["MSCI World"] = returns["EEM"].cumsum()
-if show_VIX and "^VIX" in returns.columns: plot_df["VIX"] = returns["^VIX"].cumsum()
-if show_MOVE and "MOVE" in returns.columns: plot_df["MOVE Index"] = returns["MOVE"].cumsum()
-if show_GoldVol and "GC=F" in returns.columns: plot_df["Gold Volatility"] = returns["GC=F"].cumsum()
+# ---------------------- مؤشرات الأداء ----------------------
+daily_returns = index_pct.pct_change().dropna()
+volatility = daily_returns.std()
+sharpe_like = daily_returns.mean() / volatility if volatility > 0 else 0
+corr_SPY = daily_returns.corr(data["SPY"].pct_change()) if "SPY" in data.columns else np.nan
+corr_VIX = daily_returns.corr(data["^VIX"].pct_change()) if "^VIX" in data.columns else np.nan
 
-# -------------------------------
-# Plot
-# -------------------------------
-st.subheader("Index Chart")
-if chart_type == "Line":
-    st.line_chart(plot_df)
-else:
-    st.bar_chart(plot_df)
+# ---------------------- الرسم ----------------------
+fig = go.Figure()
+fig.add_trace(go.Scatter(x=index_pct.index, y=index_pct, name="GTI", mode="lines"))
 
-# -------------------------------
-# Show editable weights table below the chart
-# -------------------------------
-st.subheader("Stock Weights Table")
-st.dataframe(weights_df)
+# إضافات المؤشرات
+if show_SPY and "SPY" in data.columns:
+    fig.add_trace(go.Scatter(x=data.index, y=data["SPY"], name="SPY", mode="lines"))
+if show_SP_Global and "SPGLOBE" in data.columns:
+    fig.add_trace(go.Scatter(x=data.index, y=data["SPGLOBE"], name="S&P Global", mode="lines"))
+if show_MSCI and "MSCI" in data.columns:
+    fig.add_trace(go.Scatter(x=data.index, y=data["MSCI"], name="MSCI World", mode="lines"))
+if show_VIX and "^VIX" in data.columns:
+    fig.add_trace(go.Scatter(x=data.index, y=data["^VIX"], name="VIX", mode="lines"))
+if show_MOVE and "MOVE" in data.columns:
+    fig.add_trace(go.Scatter(x=data.index, y=data["MOVE"], name="MOVE Index", mode="lines"))
+if show_GoldVol and "GOLDVOL" in data.columns:
+    fig.add_trace(go.Scatter(x=data.index, y=data["GOLDVOL"], name="Gold Volatility", mode="lines"))
 
-# -------------------------------
-# Performance metrics
-# -------------------------------
-st.subheader("Performance Metrics")
-metrics = {
-    "Final Index Value": float(index_pct.iloc[-1]),
-    "Index Volatility": float(returns.sum(axis=1).std()),
-    "Sharpe-like Ratio": float(returns.sum(axis=1).mean()/returns.sum(axis=1).std())
-}
-st.json(metrics)
+fig.update_layout(title="Geopolitical Tension Index", xaxis_title="Date", yaxis_title="Value (%)")
+st.plotly_chart(fig, use_container_width=True)
+
+# ---------------------- الجدول تحت الرسم ----------------------
+st.subheader("📊 Adjusted Weights & Sign Table")
+st.dataframe(edited_weights)
+
+# ---------------------- ملخص الأداء ----------------------
+st.subheader("📌 Performance Metrics")
+st.write(f"Volatility: {volatility:.4f}")
+st.write(f"Sharpe-like ratio: {sharpe_like:.4f}")
+st.write(f"Correlation with SPY: {corr_SPY:.4f}")
+st.write(f"Correlation with VIX: {corr_VIX:.4f}")
