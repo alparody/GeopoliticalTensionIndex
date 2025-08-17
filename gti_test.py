@@ -5,6 +5,53 @@ import matplotlib.pyplot as plt
 import streamlit as st
 from datetime import datetime
 
+import statsmodels.api as sm
+from statsmodels.tsa.stattools import grangercausalitytests
+
+# ---------------------------------------------------
+# دالة لاختبار السببية
+# ---------------------------------------------------
+def run_causality_test(data: pd.DataFrame, maxlag: int = 5):
+    """
+    Run Granger Causality Test between GTI and other assets (VIX, Gold).
+    data: DataFrame يحتوي الأعمدة [GTI, ^VIX, GC=F]
+    maxlag: عدد الـ lags
+    """
+    results = []
+
+    for target in ["^VIX", "GC=F"]:
+        # causality: Does GTI -> target ?
+        test1 = grangercausalitytests(data[["GTI", target]], maxlag=maxlag, verbose=False)
+        p_values1 = [round(test1[i+1][0]['ssr_ftest'][1], 4) for i in range(maxlag)]
+        min_pval1 = min(p_values1)
+
+        # reverse causality: Does target -> GTI ?
+        test2 = grangercausalitytests(data[[target, "GTI"]], maxlag=maxlag, verbose=False)
+        p_values2 = [round(test2[i+1][0]['ssr_ftest'][1], 4) for i in range(maxlag)]
+        min_pval2 = min(p_values2)
+
+        results.append({
+            "Target": target,
+            "GTI → " + target: min_pval1,
+            target + " → GTI": min_pval2
+        })
+
+    return pd.DataFrame(results)
+
+
+# ---------------------------------------------------
+# داخل الدالة الرئيسية بعد حساب correlations
+# ---------------------------------------------------
+    st.subheader("Causality Test (Granger)")
+
+    try:
+        causality_df = run_causality_test(combined, maxlag=5)
+        st.dataframe(causality_df, use_container_width=True)
+
+        st.info("ملاحظة: قيم P-Value < 0.05 تعني وجود سببية ذات دلالة إحصائية.")
+    except Exception as e:
+        st.error(f"Causality test failed: {e}")
+
 # --- Default event periods (name: (start, end)) ---
 DEFAULT_PERIODS = {
     "Russia-Ukraine invasion (early)": ("2022-02-24", "2022-05-31"),
