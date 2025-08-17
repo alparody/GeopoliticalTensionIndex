@@ -4,18 +4,22 @@ import matplotlib.pyplot as plt
 # مثال: افترض إن عندك DataFrame اسمه df فيه عمود التاريخ causality_index
 # df = pd.read_csv("causality_results.csv", parse_dates=["date"])
 
-# ✅ قائمة فترات الأزمات
+# تعريف فترات الأزمات
 periods = [
-    {"name": "Russia-Ukraine invasion (early)", "start": "2022-02-24", "end": "2022-05-31"},
-    {"name": "Israel-Hamas (Oct 2023)", "start": "2023-10-07", "end": "2023-12-15"},
-    {"name": "Global market shock (Mar 2020)", "start": "2020-02-15", "end": "2020-05-31"},
-    {"name": "Global Financial Crisis (2008)", "start": "2008-09-01", "end": "2009-03-31"},
-    {"name": "Eurozone Debt Crisis (2011)", "start": "2011-06-01", "end": "2012-01-31"},
-    {"name": "Brexit shock (2016)", "start": "2016-06-01", "end": "2016-09-30"},
-    {"name": "US Elections (2020)", "start": "2020-10-01", "end": "2020-12-31"},
-    {"name": "Inflation & Fed Rate Hikes (2022)", "start": "2022-06-01", "end": "2022-12-31"},
-    {"name": "SVB Banking Crisis (2023)", "start": "2023-03-01", "end": "2023-05-31"},
+    {"name": "2008 Financial Crisis", "start": "2008-09-01", "end": "2009-06-30"},
+    {"name": "COVID-19 Pandemic", "start": "2020-02-01", "end": "2020-12-31"},
+    {"name": "Russia-Ukraine War", "start": "2022-02-24", "end": "2022-12-31"},
 ]
+
+# عمل عمود جديد لتحديد إذا التاريخ داخل أزمة
+df["in_crisis"] = False
+df["crisis_name"] = None
+
+for p in periods:
+    mask = (df["date"] >= p["start"]) & (df["date"] <= p["end"])
+    df.loc[mask, "in_crisis"] = True
+    df.loc[mask, "crisis_name"] = p["name"]
+
 
 # ✅ دالة للتحليل داخل الفترات
 results = []
