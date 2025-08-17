@@ -3,6 +3,12 @@ import pandas as pd
 import yfinance as yf
 from datetime import date
 import plotly.express as px
+from gti_test import run_gti_test
+
+st.sidebar.title("🔧 Testing Tools")
+
+if st.sidebar.button("Run GTI Test"):
+    run_gti_test()
 
 st.set_page_config(page_title="Political Tension Index", layout="wide")
 st.title("Political Tension Index (0–100 Scale)")
