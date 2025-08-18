@@ -14,45 +14,39 @@ RSS_FEEDS = [
 # --------- Default Keywords ---------
 DEFAULT_KEYWORDS = ["geopolitics", "economic", "war", "conflict", "trade", "sanctions"]
 
-def fetch_events(start_date, end_date, keywords=None):
-    if keywords is None:
-        keywords = DEFAULT_KEYWORDS
-    
-    all_events = []
-    for feed_url in RSS_FEEDS:
-        feed = feedparser.parse(feed_url)
-        for entry in feed.entries:
-            # تاريخ النشر
-            try:
-                pub_date = datetime(*entry.published_parsed[:6])
-            except:
-                continue
-            # ضمن الفترة المحددة؟
-            if not (start_date <= pub_date.date() <= end_date):
-                continue
-            # نص العنوان يحتوي أي keyword؟
-            if any(k.lower() in entry.title.lower() for k in keywords):
-                all_events.append({
-                    "Date": pub_date.date(),
-                    "Title": entry.title,
-                    "Source": entry.get("source", feed.feed.get("title","Unknown")),
-                    "Link": entry.link
-                })
-    
-    if not all_events:
-        return pd.DataFrame(columns=["Date", "Title", "Source", "Link"])
-    
-    df = pd.DataFrame(all_events)
-    df = df.sort_values("Date", ascending=False)
-    return df
-
-def show_events_table(start_date, end_date, keywords=None):
+def fetch_events(start_date, end_date):
     try:
-        df = fetch_events(start_date, end_date, keywords)
-        if df.empty:
-            st.info("No events found for the selected date range.")
-        else:
-            st.markdown("### Important Events")
-            st.dataframe(df, use_container_width=True)
+        feed = feedparser.parse(RSS_FEED_URL)
+        items = []
+        for entry in feed.entries:
+            # تحويل التاريخ من feed
+            pub_date = datetime(*entry.published_parsed[:6])
+            if start_date <= pub_date.date() <= end_date:
+                # فلترة حسب الكلمات المفتاحية في العنوان أو الوصف
+                text = (entry.title + " " + getattr(entry, "summary", "")).lower()
+                if any(k.lower() in text for k in KEYWORDS):
+                    items.append({
+                        "Date": pub_date.strftime("%Y-%m-%d"),
+                        "Title": entry.title,
+                        "Link": entry.link
+                    })
+        if not items:
+            return pd.DataFrame(columns=["Date", "Title", "Link"])
+        df = pd.DataFrame(items)
+        return df.sort_values(by="Date", ascending=False)
     except Exception as e:
         st.error(f"Error fetching events: {e}")
+        return pd.DataFrame(columns=["Date", "Title", "Link"])
+
+def show_events_table(start_date, end_date):
+    df = fetch_events(start_date, end_date)
+    if df.empty:
+        st.info("No events found for the selected date range.")
+        return
+    # تحويل العنوان إلى HTML clickable link
+    df["Title"] = df.apply(lambda x: f'<a href="{x["Link"]}" target="_blank">{x["Title"]}</a>', axis=1)
+    # عرض الجدول في Streamlit
+    st.markdown(
+        df[["Date", "Title"]].to_html(escape=False, index=False),
+        unsafe_allow_html=True
+    )
