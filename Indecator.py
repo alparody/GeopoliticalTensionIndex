@@ -172,7 +172,7 @@ text = line.mark_text(
         hover,
         alt.Color(
             "GTI:Q",
-            scale=alt.Scale(domain=[0, 50, 100], range=["red", "orange", "green"])
+            scale=alt.Scale(domain=[0, 50, 100], range=["green", "orange", "red"])
         ),
         alt.value("transparent")
     )
