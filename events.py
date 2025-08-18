@@ -1,69 +1,61 @@
+import requests
 import streamlit as st
 import pandas as pd
-import requests
-from datetime import datetime, timedelta
 
-def fetch_events(start_date=None, end_date=None):
+
+def fetch_events(start_date: str, end_date: str, query: str = "geopolitics"):
     """
-    يجلب الأحداث من GDELT API
+    Fetch events/news from GDELT Doc API between start_date and end_date.
+    Dates must be in format YYYYMMDDHHMMSS
     """
-
-    if not start_date or not end_date:
-        # لو المستخدم ما اختارش تواريخ، نجيب آخر أسبوع افتراضيًا
-        end_date = datetime.today().strftime("%Y%m%d")
-        start_date = (datetime.today() - timedelta(days=7)).strftime("%Y%m%d")
-    else:
-        start_date = pd.to_datetime(str(start_date), errors="coerce").strftime("%Y%m%d")
-        end_date = pd.to_datetime(str(end_date), errors="coerce").strftime("%Y%m%d")
-
-    url = (
-        f"https://api.gdeltproject.org/api/v2/events/summary"
-        f"?QUERY=geopolitics&STARTDATETIME={start_date}000000&ENDDATETIME={end_date}235959"
-        f"&MAXROWS=50&FORMAT=json"
-    )
-
     try:
-        response = requests.get(url)
+        url = "https://api.gdeltproject.org/api/v2/doc/doc"
+        params = {
+            "query": query,
+            "mode": "ArtList",
+            "maxrecords": 50,
+            "format": "json",
+            "startdatetime": start_date,
+            "enddatetime": end_date,
+        }
+
+        response = requests.get(url, params=params, timeout=20)
         response.raise_for_status()
         data = response.json()
 
-        # لو مافيش بيانات
-        if "articles" not in data:
+        if "articles" not in data or len(data["articles"]) == 0:
             return pd.DataFrame()
 
-        events = data["articles"]
+        events = []
+        for article in data["articles"]:
+            events.append({
+                "Date": article.get("seendate", "")[:8],  # YYYYMMDD
+                "Source": article.get("sourceCommonName", ""),
+                "Title": article.get("title", ""),
+                "URL": article.get("url", ""),
+            })
 
-        # نحول الأحداث لـ DataFrame
-        df = pd.DataFrame(events)
-
-        if df.empty:
-            return df
-
-        # معالجة التاريخ بشكل آمن
-        if "Date" in df.columns:
-            df["Date"] = df["Date"].astype(str)  # نتأكد انه نص
-            df["Date"] = pd.to_datetime(df["Date"], format="%Y%m%d", errors="coerce")
-            df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
-
-        # نتأكد إن في عنوان موجود
-        if "Title" in df.columns:
-            df = df.dropna(subset=["Title"])
-
-        return df
+        return pd.DataFrame(events)
 
     except Exception as e:
         st.error(f"Error fetching events: {e}")
         return pd.DataFrame()
 
 
-def show_events_table(start_date=None, end_date=None):
+def show_events_table(start_date: str, end_date: str):
     """
-    يعرض جدول الأحداث في Streamlit
+    Display events table in Streamlit sidebar
+    Dates must be in format YYYYMMDDHHMMSS
     """
-    df = fetch_events(start_date, end_date)
+    st.sidebar.subheader("📅 Key Geopolitical Events")
 
-    if df.empty:
-        st.info("No events found for the selected date range.")
+    events_df = fetch_events(start_date, end_date)
+
+    if events_df.empty:
+        st.sidebar.info("No events found for the selected date range.")
     else:
-        st.subheader("Geopolitical Events")
-        st.dataframe(df[["Date", "Title", "SourceCommonName"]])
+        st.sidebar.dataframe(
+            events_df[["Date", "Title", "Source"]],
+            use_container_width=True,
+            height=400,
+        )
