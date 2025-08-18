@@ -171,8 +171,8 @@ text = alt.Chart(gti_df).mark_text(
     y="GTI:Q",
     text=alt.condition(
         hover,
-        alt.datum.Date + ": " + alt.datum.GTI.toString(),
-        alt.value(f"{gti_df.iloc[-1]['Date'].strftime('%Y-%m-%d')}: {gti_df.iloc[-1]['GTI']:.2f}")
+        alt.Text("GTI:Q", format=".2f"),   # لو الماوس موجود
+        alt.value(f"{gti_df.iloc[-1]['GTI']:.2f}")   # آخر قيمة
     )
 )
 
