@@ -8,6 +8,7 @@ import requests
 import base64
 from datetime import date, timedelta
 import altair as alt
+from events import show_events_table
 
 st.set_page_config(page_title="Geopolitical Tension Index", layout="wide")
 st.title("Geopolitical Tension Index (GTI)")
@@ -181,6 +182,11 @@ chart = alt.layer(line, points, text).interactive()
 st.altair_chart(chart, use_container_width=True)
 
 # Change Tooltip to label change Task
+
+# Add News Part
+# بعد تحديد start_date و end_date
+show_events_table(start_date, end_date)
+# End of News Part
 
 # ---------- Table + Save/Restore ----------
 st.markdown("### Adjust Weights Below")
