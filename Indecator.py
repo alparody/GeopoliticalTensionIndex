@@ -134,7 +134,7 @@ st.markdown(
         <!-- الرقم -->
         <span style='font-size:28px; font-weight:bold; color:{color_hex}; margin-right:10px;'>{gti_today:.2f}</span>
         <!-- النص -->
-        <span style='font-size:20px; font-weight:500; color:color_hex;'>Today's GTI</span>
+        <span style='font-size:20px; font-weight:500; color:#333;'>Today's GTI</span>
     </div>
     """,
     unsafe_allow_html=True
@@ -164,7 +164,7 @@ points = line.mark_circle(size=50).encode(
 ).add_selection(hover)
 
 text = line.mark_text(
-    align="left", dx=10, dy=-10, fontSize=13, fontWeight="bold", color="red"
+    align="left", dx=10, dy=-10, fontSize=13, fontWeight="bold", color=color_hex
 ).encode(
     text=alt.condition(hover, alt.Text("GTI:Q", format=".2f"), alt.value(""))
 )
