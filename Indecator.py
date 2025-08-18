@@ -1,18 +1,16 @@
-# indicator_app_final.py
+# indicator_app_final2.py
 import streamlit as st
 import pandas as pd
-import numpy as np
 import yfinance as yf
-import plotly.express as px
 import plotly.graph_objects as go
-import base64
-import requests
 import os
 import shutil
+import base64
+import requests
 from datetime import date, timedelta
 
-st.set_page_config(page_title="Political Tension Index", layout="wide")
-st.title("Political Tension Index (0–100) — Classic GTI")
+st.set_page_config(page_title="Geopolitical Tension Index", layout="wide")
+st.title("Geopolitical Tension Index (0–100 Scale)")
 
 # ---------- Config ----------
 WEIGHTS_FILE = "stocks_weights.csv"
@@ -57,14 +55,13 @@ def push_to_github(content_str, path_in_repo, commit_message="Update weights"):
 @st.cache_data
 def get_data(symbols, start, end):
     data = yf.download(symbols, start=start, end=end, auto_adjust=True, progress=False)
-    if isinstance(data.columns, pd.MultiIndex):
-        if "Close" in data:
-            data = data["Close"]
+    if isinstance(data.columns, pd.MultiIndex) and "Close" in data:
+        data = data["Close"]
     if isinstance(data, pd.Series):
         data = data.to_frame()
     return data.dropna(how="all", axis=1)
 
-def compute_gti_classic(prices, weights_df):
+def compute_gti(prices, weights_df):
     returns = prices.pct_change().fillna(0)
     symbols_present = [s for s in weights_df["symbol"] if s in returns.columns]
     dfw = weights_df[weights_df["symbol"].isin(symbols_present)]
@@ -84,16 +81,19 @@ def gti_color(val):
     if val < 80: return "#e67e22"
     return "#e74c3c"
 
-# ---------- Date Controls ----------
-col1, col2 = st.columns(2)
+# ---------- Sidebar Controls ----------
+st.sidebar.header("Analysis Settings")
+# Date inputs
 default_end = date.today()
 default_start = default_end - timedelta(days=365)
-with col1:
-    start_date = st.date_input("From Date", default_start)
-with col2:
-    end_date = st.date_input("To Date", default_end)
-if st.button("Restore Default Dates"):
-    start_date, end_date = default_start, default_end
+start_date = st.sidebar.date_input("From", default_start)
+end_date = st.sidebar.date_input("To", default_end)
+today_date = st.sidebar.date_input("Today", default_end)
+
+chart_type = st.sidebar.selectbox("Chart Type", ["Line", "Bar"])
+
+if st.sidebar.button("Restore Default Dates"):
+    start_date, end_date, today_date = default_start, default_end, default_end
     st.experimental_rerun()
 
 # ---------- Load Weights ----------
@@ -107,7 +107,7 @@ if prices.empty:
     st.stop()
 
 # ---------- Compute GTI ----------
-index_pct, index_raw, weighted = compute_gti_classic(prices, weights)
+index_pct, index_raw, weighted = compute_gti(prices, weights)
 today_pct = float(index_pct.iloc[-1])
 color_hex = gti_color(today_pct)
 
@@ -119,10 +119,13 @@ with col2:
 
 st.markdown("---")
 
-# ---------- Plot ----------
+# ---------- Plot GTI ----------
 fig = go.Figure()
-fig.add_trace(go.Scatter(x=index_raw.index, y=index_raw.values, mode="lines", name="GTI"))
-fig.update_layout(title="Geopolitical Tension Index (0–100)", xaxis_title="Date", yaxis_title="GTI", yaxis=dict(range=[0,100]))
+if chart_type == "Line":
+    fig.add_trace(go.Scatter(x=index_raw.index, y=index_pct.values, mode="lines+markers", name="GTI"))
+else:
+    fig.add_trace(go.Bar(x=index_raw.index, y=index_pct.values, name="GTI"))
+fig.update_layout(title="Geopolitical Tension Index (0–100)", xaxis_title="Date", yaxis=dict(title="GTI", range=[0,100]))
 st.plotly_chart(fig, use_container_width=True)
 
 # ---------- Table & Buttons ----------
