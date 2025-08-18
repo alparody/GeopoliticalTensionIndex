@@ -131,13 +131,17 @@ with col2:
 
 st.markdown("---")
 
-# ---------- Plot ----------
+# ---------- Plot GTI (stepped line like classic) ----------
 fig = go.Figure()
-if chart_type=="Line":
-    fig.add_trace(go.Scatter(x=index_pct.index, y=index_pct.values, mode="lines", name="GTI"))
-else:
-    fig.add_trace(go.Bar(x=index_pct.index, y=index_pct.values, name="GTI"))
-fig.update_layout(title="Geopolitical Tension Index (0–100)", xaxis_title="Date", yaxis_title="GTI")
+fig.add_trace(go.Scatter(
+    x=index_pct.index,
+    y=index_pct.values,
+    mode="lines+markers",
+    line_shape="hv",   # stepped line: horizontal-vertical
+    name="GTI"
+))
+fig.update_layout(title="Geopolitical Tension Index (0–100)",
+                  xaxis_title="Date", yaxis_title="GTI")
 st.plotly_chart(fig, use_container_width=True)
 
 # ---------- Table BELOW chart + Save/Restore ----------
