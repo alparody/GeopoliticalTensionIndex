@@ -142,9 +142,10 @@ st.markdown(
 
 # Example: تجهيز البيانات
 gti_df = pd.DataFrame({
-    "Date": gti_data.index,
-    "GTI": gti_data.values
+    "Date": index_pct.index,
+    "GTI": index_pct.values
 })
+
 chart = (
     alt.Chart(gti_df)
     .mark_line(color="#4A90E2", point=True)
