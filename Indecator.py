@@ -7,6 +7,7 @@ import shutil
 import requests
 import base64
 from datetime import date, timedelta
+import altair as alt
 
 st.set_page_config(page_title="Geopolitical Tension Index", layout="wide")
 st.title("Geopolitical Tension Index (GTI)")
@@ -139,7 +140,18 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-st.line_chart(index_pct, height=300)
+chart = (
+    alt.Chart(gti_df)
+    .mark_line(color="#4A90E2", point=True)
+    .encode(
+        x=alt.X("Date:T", title="Date"),
+        y=alt.Y("GTI:Q", title="GTI"),
+        tooltip=[alt.Tooltip("Date:T", title="Date"), alt.Tooltip("GTI:Q", title="GTI")]
+    )
+    .interactive()  # يخلي التكبير/التصغير والـ tooltip أكثر ثبات
+)
+
+st.altair_chart(chart, use_container_width=True)
 
 # ---------- Table + Save/Restore ----------
 st.markdown("### Adjust Weights Below")
