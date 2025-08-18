@@ -1,108 +1,162 @@
+# indicator_app_final.py
 import streamlit as st
 import pandas as pd
+import numpy as np
 import yfinance as yf
-from datetime import date
 import plotly.express as px
+import plotly.graph_objects as go
+import base64
+import requests
+import os
+import shutil
+from datetime import date, timedelta
 
 st.set_page_config(page_title="Political Tension Index", layout="wide")
-st.title("Political Tension Index (0–100 Scale)")
+st.title("Political Tension Index (0–100) — Classic GTI")
 
-# --- Load CSV ---
-csv_url = "https://raw.githubusercontent.com/alparody/GeopoliticalTensionIndex/refs/heads/main/stocks_weights.csv"
-df = pd.read_csv(csv_url)
-df["weight"] = df["weight"].astype(float)
+# ---------- Config ----------
+WEIGHTS_FILE = "stocks_weights.csv"
+BACKUP_FILE = "backup_weights.csv"
+GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN") if "GITHUB_TOKEN" in st.secrets else os.environ.get("GITHUB_TOKEN")
+GITHUB_REPO = st.secrets.get("GITHUB_REPO") if "GITHUB_REPO" in st.secrets else os.environ.get("GITHUB_REPO")
 
-# --- Date inputs ---
-col1, col2 = st.columns(2)
-with col1:
-    start_date = st.date_input("From Date", date.today() - pd.Timedelta(days=365))
-with col2:
-    end_date = st.date_input("To Date", date.today())
+# ---------- Helper Functions ----------
+def read_weights(path=WEIGHTS_FILE):
+    if not os.path.exists(path):
+        st.error(f"Weights file not found: {path}")
+        st.stop()
+    df = pd.read_csv(path)
+    df.columns = [c.strip() for c in df.columns]
+    for col in ["weight", "positive"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+    if "full_name" not in df.columns:
+        df["full_name"] = df["symbol"]
+    return df
 
-# --- Cache data fetch ---
-@st.cache_data(show_spinner=False)
+def save_weights_local(df, path=WEIGHTS_FILE):
+    df.to_csv(path, index=False)
+
+def push_to_github(content_str, path_in_repo, commit_message="Update weights"):
+    if not GITHUB_TOKEN or not GITHUB_REPO:
+        return False, "GitHub token or repo not set"
+    api_url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path_in_repo}"
+    headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+    r = requests.get(api_url, headers=headers)
+    content_b64 = base64.b64encode(content_str.encode()).decode()
+    payload = {"message": commit_message, "content": content_b64}
+    if r.status_code == 200:
+        sha = r.json().get("sha")
+        payload["sha"] = sha
+    r2 = requests.put(api_url, headers=headers, json=payload)
+    if r2.status_code in (200,201):
+        return True, "OK"
+    else:
+        return False, f"GitHub API error: {r2.status_code}"
+
+@st.cache_data
 def get_data(symbols, start, end):
-    return yf.download(
-        symbols,
-        start=start,
-        end=end,
-        auto_adjust=True,
-        progress=False,
-    )["Close"].dropna(how="all", axis=1)
+    data = yf.download(symbols, start=start, end=end, auto_adjust=True, progress=False)
+    if isinstance(data.columns, pd.MultiIndex):
+        if "Close" in data:
+            data = data["Close"]
+    if isinstance(data, pd.Series):
+        data = data.to_frame()
+    return data.dropna(how="all", axis=1)
 
-with st.spinner("Fetching market data…"):
-    data = get_data(df["symbol"].tolist(), start_date, end_date)
+def compute_gti_classic(prices, weights_df):
+    returns = prices.pct_change().fillna(0)
+    symbols_present = [s for s in weights_df["symbol"] if s in returns.columns]
+    dfw = weights_df[weights_df["symbol"].isin(symbols_present)]
+    total_w = dfw["weight"].sum() or 1.0
+    weighted = pd.DataFrame(index=returns.index)
+    for _, r in dfw.iterrows():
+        sign = 1 if int(r["positive"])==1 else -1
+        weighted[r["symbol"]] = returns[r["symbol"]] * r["weight"]/total_w * sign
+    index_raw = weighted.sum(axis=1).cumsum()
+    min_v, max_v = index_raw.min(), index_raw.max()
+    index_pct = (index_raw - min_v)/(max_v - min_v)*100 if max_v != min_v else pd.Series(50.0, index=index_raw.index)
+    return index_pct, index_raw, weighted
 
-if data is None or data.empty:
-    st.error("No price data was returned for the selected period.")
+def gti_color(val):
+    if val < 40: return "#2ecc71"
+    if val < 60: return "#f1c40f"
+    if val < 80: return "#e67e22"
+    return "#e74c3c"
+
+# ---------- Date Controls ----------
+col1, col2 = st.columns(2)
+default_end = date.today()
+default_start = default_end - timedelta(days=365)
+with col1:
+    start_date = st.date_input("From Date", default_start)
+with col2:
+    end_date = st.date_input("To Date", default_end)
+if st.button("Restore Default Dates"):
+    start_date, end_date = default_start, default_end
+    st.experimental_rerun()
+
+# ---------- Load Weights ----------
+weights = read_weights()
+
+# ---------- Fetch Data ----------
+with st.spinner("Fetching price data..."):
+    prices = get_data(weights["symbol"].tolist(), start_date, end_date)
+if prices.empty:
+    st.error("No price data available.")
     st.stop()
 
-# --- Compute returns ---
-returns = data.pct_change(fill_method=None).dropna(how="all")
-
-# --- Filter missing symbols ---
-available = [s for s in df["symbol"] if s in returns.columns]
-missing = [s for s in df["symbol"] if s not in returns.columns]
-df = df[df["symbol"].isin(available)].copy()
-
-if df.empty:
-    st.error("All symbols are missing data after filtering. Please check your CSV.")
-    st.stop()
-
-returns = returns[available]
-
-# --- Weighted returns (sign-adjusted, normalized) ---
-total_weight = df["weight"].sum()
-weighted = pd.DataFrame(index=returns.index)
-
-for _, row in df.iterrows():
-    sign = 1 if int(row["positive"]) == 1 else -1
-    weighted[row["symbol"]] = returns[row["symbol"]] * (row["weight"] / total_weight) * sign
-
-# --- Build cumulative index then scale to 0–100 ---
-index_series = weighted.sum(axis=1).cumsum()
-min_v, max_v = index_series.min(), index_series.max()
-
-if max_v == min_v:
-    index_pct = pd.Series(50.0, index=index_series.index)
-else:
-    index_pct = (index_series - min_v) / (max_v - min_v) * 100.0
-
-# --- Today's index value ---
+# ---------- Compute GTI ----------
+index_pct, index_raw, weighted = compute_gti_classic(prices, weights)
 today_pct = float(index_pct.iloc[-1])
-color = "green" if today_pct >= 70 else "orange" if today_pct >= 40 else "red"
+color_hex = gti_color(today_pct)
 
-st.markdown(f"### Today's Index: **{today_pct:.2f}%**")
-st.markdown(f"<h2 style='color:{color};'>■</h2>", unsafe_allow_html=True)
+col1, col2 = st.columns([3,1])
+with col1:
+    st.markdown(f"### Today's GTI: **{today_pct:.2f}**")
+with col2:
+    st.markdown(f"<div style='width:40px;height:28px;border-radius:4px;background:{color_hex};'></div>", unsafe_allow_html=True)
 
-# --- Charts ---
-st.line_chart(index_pct, height=280)
+st.markdown("---")
 
-contrib = weighted.iloc[-1].sort_values()
-fig = px.bar(
-    contrib,
-    title="Today's Contributions",
-    orientation="h",
-    labels={"value": "Contribution", "index": "Symbol"},
-    color=contrib.values,
-    color_continuous_scale="RdYlGn",
-)
+# ---------- Plot ----------
+fig = go.Figure()
+fig.add_trace(go.Scatter(x=index_raw.index, y=index_raw.values, mode="lines", name="GTI"))
+fig.update_layout(title="Geopolitical Tension Index (0–100)", xaxis_title="Date", yaxis_title="GTI", yaxis=dict(range=[0,100]))
 st.plotly_chart(fig, use_container_width=True)
 
-# --- Diagnostics ---
-with st.expander("Data diagnostics"):
-    if missing:
-        st.warning(
-            f"Missing data for {len(missing)} symbol(s): {', '.join(missing)}. "
-            "They were excluded from the index."
-        )
-    else:
-        st.write("All symbols fetched successfully.")
+# ---------- Table & Buttons ----------
+st.markdown("### Adjust Weights")
+col_table, col_buttons = st.columns([4,1])
+editor_func = getattr(st, "data_editor", None) or getattr(st, "experimental_data_editor", None) or None
 
-# --- Download button ---
-st.download_button(
-    label="Download Index Data (0–100)",
-    data=index_pct.to_csv().encode("utf-8"),
-    file_name="geopolitical_index.csv",
-    mime="text/csv",
-)
+with col_table:
+    if editor_func:
+        edited = editor_func(weights, num_rows="dynamic", use_container_width=True, key="weights_editor")
+    else:
+        st.dataframe(weights, use_container_width=True)
+        edited = weights.copy()
+
+with col_buttons:
+    if st.button("💾 Save Changes"):
+        save_weights_local(edited)
+        try:
+            csv_text = edited.to_csv(index=False)
+            ok,msg = push_to_github(csv_text, WEIGHTS_FILE)
+            if ok:
+                st.success("Saved locally and pushed to GitHub.")
+            else:
+                st.warning(f"Saved locally. GitHub push failed: {msg}")
+        except:
+            st.warning("Saved locally. GitHub push attempt failed.")
+        st.experimental_rerun()
+    if st.button("♻️ Restore Original (from backup)"):
+        if os.path.exists(BACKUP_FILE):
+            shutil.copy(BACKUP_FILE, WEIGHTS_FILE)
+            st.success("Restored from backup locally.")
+            st.experimental_rerun()
+        else:
+            st.error("Backup file not found.")
+
+# ---------- Download ----------
+st.download_button("Download Index Data (0–100)", index_pct.to_csv().encode("utf-8"), "geopolitical_index.csv", "text/csv")
