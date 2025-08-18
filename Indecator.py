@@ -146,13 +146,55 @@ gti_df = pd.DataFrame({
     "GTI": index_pct.values
 })
 
+# Selection عشان نتابع مكان الماوس على المحور X
 hover = alt.selection_single(
     fields=["Date"],
     nearest=True,
-    on="mouseover",
+    on="mousemove",
     empty="none",
     clear="mouseout"
 )
+
+# الخط الأساسي
+line = alt.Chart(gti_df).mark_line(color="#4A90E2").encode(
+    x=alt.X("Date:T", title="Date"),
+    y=alt.Y("GTI:Q", title="GTI")
+)
+
+# نعمل rule عمودي يظهر مع حركة الماوس
+rule = alt.Chart(gti_df).mark_rule(color="gray").encode(
+    x="Date:T"
+).add_selection(
+    hover
+).transform_filter(
+    hover
+)
+
+# النص اللي هيظهر فوق الرسم
+labels = alt.Chart(gti_df).mark_text(
+    align="left", dx=5, dy=-5, color="black", fontSize=14, fontWeight="bold"
+).encode(
+    x="Date:T",
+    y="GTI:Q",
+    text=alt.condition(hover, "GTI:Q", alt.value(f"{gti_df.iloc[-1]['GTI']}"))
+).transform_filter(
+    hover
+)
+
+# لو خرجت من الرسم نرجع آخر قيمة (اليوم الحالي)
+last_value = alt.Chart(pd.DataFrame([gti_df.iloc[-1]])).mark_text(
+    align="left", dx=5, dy=-5, color="black", fontSize=14, fontWeight="bold"
+).encode(
+    x="Date:T",
+    y="GTI:Q",
+    text="GTI:Q"
+).transform_filter(~hover)
+
+# دمج الرسومات
+chart = (line + rule + labels + last_value).properties(
+    width=700,
+    height=400
+).interactive()
 
 line = alt.Chart(gti_df).mark_line(color="#4A90E2").encode(
     x=alt.X("Date:T", title="Date"),
