@@ -1,4 +1,4 @@
-# events.py
+# events.py 
 import streamlit as st
 import pandas as pd
 import feedparser
@@ -14,39 +14,69 @@ RSS_FEEDS = [
 # --------- Default Keywords ---------
 DEFAULT_KEYWORDS = ["geopolitics", "economic", "war", "conflict", "trade", "sanctions"]
 
-def fetch_events(start_date, end_date):
-    try:
-        feed = feedparser.parse(RSS_FEED_URL)
-        items = []
+def fetch_events(start_date, end_date, keywords=None):
+    if keywords is None:
+        keywords = DEFAULT_KEYWORDS
+    
+    all_events = []
+    for feed_url in RSS_FEEDS:
+        feed = feedparser.parse(feed_url)
         for entry in feed.entries:
-            # تحويل التاريخ من feed
-            pub_date = datetime(*entry.published_parsed[:6])
-            if start_date <= pub_date.date() <= end_date:
-                # فلترة حسب الكلمات المفتاحية في العنوان أو الوصف
-                text = (entry.title + " " + getattr(entry, "summary", "")).lower()
-                if any(k.lower() in text for k in KEYWORDS):
-                    items.append({
-                        "Date": pub_date.strftime("%Y-%m-%d"),
-                        "Title": entry.title,
-                        "Link": entry.link
-                    })
-        if not items:
-            return pd.DataFrame(columns=["Date", "Title", "Link"])
-        df = pd.DataFrame(items)
-        return df.sort_values(by="Date", ascending=False)
+            # تاريخ النشر
+            try:
+                pub_date = datetime(*entry.published_parsed[:6])
+            except:
+                continue
+            # ضمن الفترة المحددة؟
+            if not (start_date <= pub_date.date() <= end_date):
+                continue
+            # النص يحتوي أي keyword؟
+            if any(k.lower() in entry.title.lower() for k in keywords):
+                all_events.append({
+                    "Date": pub_date.date(),
+                    "Title": entry.title,
+                    "Source": entry.get("source", feed.feed.get("title","Unknown")),
+                    "Link": entry.link
+                })
+    
+    if not all_events:
+        return pd.DataFrame(columns=["Date", "Title", "Source", "Link"])
+    
+    df = pd.DataFrame(all_events)
+    df = df.sort_values("Date", ascending=False)
+    return df
+
+def show_events_table(start_date, end_date, keywords=None):
+    try:
+        df = fetch_events(start_date, end_date, keywords)
+        if df.empty:
+            st.info("No events found for the selected date range.")
+            return
+        st.markdown("### Important Events")
+        
+        # إنشاء جدول HTML مع لينكات قابلة للنقر
+        table_html = """
+        <table style='width:100%; border-collapse: collapse;'>
+            <thead>
+                <tr>
+                    <th style='border-bottom: 1px solid #ddd; padding: 8px; text-align:left;'>Date</th>
+                    <th style='border-bottom: 1px solid #ddd; padding: 8px; text-align:left;'>Title</th>
+                    <th style='border-bottom: 1px solid #ddd; padding: 8px; text-align:left;'>Source</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
+        for _, row in df.iterrows():
+            table_html += f"""
+                <tr>
+                    <td style='border-bottom: 1px solid #ddd; padding: 6px;'>{row['Date']}</td>
+                    <td style='border-bottom: 1px solid #ddd; padding: 6px;'>
+                        <a href="{row['Link']}" target="_blank">{row['Title']}</a>
+                    </td>
+                    <td style='border-bottom: 1px solid #ddd; padding: 6px;'>{row['Source']}</td>
+                </tr>
+            """
+        table_html += "</tbody></table>"
+        st.markdown(table_html, unsafe_allow_html=True)
     except Exception as e:
         st.error(f"Error fetching events: {e}")
-        return pd.DataFrame(columns=["Date", "Title", "Link"])
-
-def show_events_table(start_date, end_date):
-    df = fetch_events(start_date, end_date)
-    if df.empty:
-        st.info("No events found for the selected date range.")
-        return
-    # تحويل العنوان إلى HTML clickable link
-    df["Title"] = df.apply(lambda x: f'<a href="{x["Link"]}" target="_blank">{x["Title"]}</a>', axis=1)
-    # عرض الجدول في Streamlit
-    st.markdown(
-        df[["Date", "Title"]].to_html(escape=False, index=False),
-        unsafe_allow_html=True
-    )
