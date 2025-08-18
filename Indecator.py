@@ -125,19 +125,19 @@ index_pct = (index_series - min_v)/(max_v - min_v)*100 if max_v!=min_v else pd.S
 # ---------- Display GTI ----------
 gti_today = float(index_pct.iloc[-1])
 color_hex = gti_color(gti_today)
-col1, col2 = st.columns([1, 9])
-with col1:
-    st.markdown(
-        f"""
-        <div style='display:flex; align-items:center;'>
-            <div style='width:28px; height:28px; border-radius:4px; background:{color_hex}; margin-right:10px;'></div>
-            <span style='font-size:24px; font-weight:bold;'>{gti_today:.2f}</span>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-with col2:
-    st.markdown("### Today's GTI")
+st.markdown(
+    f"""
+    <div style='display:flex; align-items:center; font-family:sans-serif;'>
+        <!-- اللون -->
+        <div style='width:28px; height:28px; border-radius:4px; background:{color_hex}; margin-right:10px;'></div>
+        <!-- الرقم -->
+        <span style='font-size:28px; font-weight:bold; color:{color_hex}; margin-right:10px;'>{gti_today:.2f}</span>
+        <!-- النص -->
+        <span style='font-size:20px; font-weight:500; color:#333;'>Today's GTI</span>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 st.line_chart(index_pct, height=300)
 
