@@ -147,53 +147,32 @@ gti_df = pd.DataFrame({
 })
 
 # Change Tooltip to label change Task
-
-# Selection للماوس
 hover = alt.selection_single(
     fields=["Date"],
     nearest=True,
     on="mouseover",
-    empty="none",
-    clear="mouseout"
+    empty="none"
 )
 
-# الخط الأساسي
 line = alt.Chart(gti_df).mark_line(color="#4A90E2").encode(
     x=alt.X("Date:T", title="Date"),
     y=alt.Y("GTI:Q", title="GTI")
 )
 
-# نقطة صغيرة تظهر عند الماوس
-points = alt.Chart(gti_df).mark_circle(size=60, color="red").encode(
-    x="Date:T",
-    y="GTI:Q"
-).transform_filter(hover)
+points = line.mark_circle(size=50).encode(
+    opacity=alt.condition(hover, alt.value(1), alt.value(0))
+).add_selection(hover)
 
-# نص يتغير مع الماوس
-text = alt.Chart(gti_df).mark_text(
+text = line.mark_text(
     align="left", dx=10, dy=-10, fontSize=13, fontWeight="bold", color="red"
 ).encode(
-    x="Date:T",
-    y="GTI:Q",
-    text=alt.Text("GTI:Q", format=".2f")
-).transform_filter(hover)
-
-# آخر قيمة ثابتة (لو الماوس مش موجود)
-last_value = gti_df.iloc[-1]
-last_label = alt.Chart(pd.DataFrame([last_value])).mark_text(
-    align="left", dx=10, dy=-10, fontSize=13, fontWeight="bold", color="black"
-).encode(
-    x="Date:T",
-    y="GTI:Q",
-    text=alt.Text("GTI:Q", format=".2f")
+    text=alt.condition(hover, alt.Text("GTI:Q", format=".2f"), alt.value(""))
 )
 
-# دمج كل العناصر
-chart = alt.layer(line, points, text, last_label).add_selection(hover).interactive()
+chart = alt.layer(line, points, text).interactive()
+st.altair_chart(chart, use_container_width=True)
 
 # Change Tooltip to label change Task
-
-st.altair_chart(chart, use_container_width=True)
 
 # ---------- Table + Save/Restore ----------
 st.markdown("### Adjust Weights Below")
