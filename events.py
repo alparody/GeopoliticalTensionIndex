@@ -55,10 +55,9 @@ def show_events_table(start_date, end_date, keywords=None):
 
         st.markdown("### Important Events")
 
-        # نستخدم st.write مع Markdown لكل صف
         for _, row in df.iterrows():
             date_str = row['Date'].strftime("%Y-%m-%d") if hasattr(row['Date'], 'strftime') else str(row['Date'])
-            st.markdown(f"- **{date_str}** | [{row['Title']}]({row['Link']}) | {row['Source']}", unsafe_allow_html=True)
+            st.markdown(f"{date_str} | [{row['Title']}]({row['Link']})", unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"Error fetching events: {e}")
