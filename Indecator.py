@@ -163,16 +163,15 @@ points = line.mark_circle(size=50).encode(
     opacity=alt.condition(hover, alt.value(1), alt.value(0))
 ).add_selection(hover)
 
-# هنا بقى اللون بيتحدد بالـ encoding
+# النص مع تدريج لوني معكوس (أخضر -> أورانج -> أحمر)
 text = line.mark_text(
     align="left", dx=10, dy=-10, fontSize=13, fontWeight="bold"
 ).encode(
     text=alt.condition(hover, alt.Text("GTI:Q", format=".2f"), alt.value("")),
     color=alt.condition(
         hover,
-        alt.Color(
-            "GTI:Q",
-            scale=alt.Scale(domain=[0, 50, 100], range=["green", "orange", "red"])
+        alt.Color("GTI:Q",
+                  scale=alt.Scale(domain=[0, 50, 100], range=["green", "orange", "red"])
         ),
         alt.value("transparent")
     )
