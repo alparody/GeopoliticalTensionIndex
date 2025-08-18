@@ -13,8 +13,8 @@ def fetch_events(start_date=None, end_date=None):
         end_date = datetime.today().strftime("%Y%m%d")
         start_date = (datetime.today() - timedelta(days=7)).strftime("%Y%m%d")
     else:
-        start_date = pd.to_datetime(start_date).strftime("%Y%m%d")
-        end_date = pd.to_datetime(end_date).strftime("%Y%m%d")
+        start_date = pd.to_datetime(str(start_date), errors="coerce").strftime("%Y%m%d")
+        end_date = pd.to_datetime(str(end_date), errors="coerce").strftime("%Y%m%d")
 
     url = (
         f"https://api.gdeltproject.org/api/v2/events/summary"
@@ -41,11 +41,9 @@ def fetch_events(start_date=None, end_date=None):
 
         # معالجة التاريخ بشكل آمن
         if "Date" in df.columns:
-            try:
-                df["Date"] = pd.to_datetime(df["Date"], format="%Y%m%d", errors="coerce")
-                df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
-            except Exception:
-                pass
+            df["Date"] = df["Date"].astype(str)  # نتأكد انه نص
+            df["Date"] = pd.to_datetime(df["Date"], format="%Y%m%d", errors="coerce")
+            df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
 
         # نتأكد إن في عنوان موجود
         if "Title" in df.columns:
