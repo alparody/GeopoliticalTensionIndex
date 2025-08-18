@@ -185,7 +185,7 @@ st.altair_chart(chart, use_container_width=True)
 
 # Add News Part
 # بعد تحديد start_date و end_date
-show_events_table(start_date, end_date)
+show_events_table(st.session_state.start_date, st.session_state.end_date)
 # End of News Part
 
 # ---------- Table + Save/Restore ----------
