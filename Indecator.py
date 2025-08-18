@@ -161,40 +161,36 @@ line = alt.Chart(gti_df).mark_line(color="#4A90E2").encode(
     y=alt.Y("GTI:Q", title="GTI")
 )
 
-# نعمل rule عمودي يظهر مع حركة الماوس
-rule = alt.Chart(gti_df).mark_rule(color="gray").encode(
-    x="Date:T"
-).add_selection(
-    hover
-).transform_filter(
-    hover
+# تعريف hover selection
+hover = alt.selection_single(
+    fields=["Date"], nearest=True, on="mouseover", empty="none", clear="mouseout"
 )
 
-# النص اللي هيظهر فوق الرسم
-labels = alt.Chart(gti_df).mark_text(
-    align="left", dx=5, dy=-5, color="black", fontSize=14, fontWeight="bold"
+# خط الرسم الأساسي
+line = alt.Chart(gti_df).mark_line(color="#4A90E2").encode(
+    x="Date:T",
+    y="GTI:Q"
+)
+
+# تحديد أقرب نقطة للماوس
+points = line.transform_filter(hover).mark_circle(size=70, color="red")
+
+# النص المتغير مع الماوس أو آخر قيمة
+text = alt.Chart(gti_df).mark_text(
+    align="left", dx=5, dy=-5, fontSize=13, fontWeight="bold"
 ).encode(
     x="Date:T",
     y="GTI:Q",
-    text=alt.condition(hover, "GTI:Q", alt.value(f"{gti_df.iloc[-1]['GTI']}"))
-).transform_filter(
-    hover
+    text=alt.condition(
+        hover,
+        alt.datum.Date + ": " + alt.datum.GTI.toString(),
+        alt.value(f"{gti_df.iloc[-1]['Date'].strftime('%Y-%m-%d')}: {gti_df.iloc[-1]['GTI']:.2f}")
+    )
 )
 
-# لو خرجت من الرسم نرجع آخر قيمة (اليوم الحالي)
-last_value = alt.Chart(pd.DataFrame([gti_df.iloc[-1]])).mark_text(
-    align="left", dx=5, dy=-5, color="black", fontSize=14, fontWeight="bold"
-).encode(
-    x="Date:T",
-    y="GTI:Q",
-    text="GTI:Q"
-).transform_filter(~hover)
+# دمج الكل
+chart = alt.layer(line, points, text).add_selection(hover).interactive()
 
-# دمج الرسومات
-chart = (line + rule + labels + last_value).properties(
-    width=700,
-    height=400
-).interactive()
 
 
 st.altair_chart(chart, use_container_width=True)
