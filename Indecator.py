@@ -98,7 +98,7 @@ weights = read_weights(WEIGHTS_FILE)
 symbols = weights["symbol"].tolist()
 
 with st.spinner("Fetching price data..."):
-    prices = get_price_data(symbols, start_date, end_date)
+    prices = get_price_data(symbols, st.session_state.start_date, st.session_state.end_date)
 
 if prices is None or prices.empty:
     st.error("No price data available.")
