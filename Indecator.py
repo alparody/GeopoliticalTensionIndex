@@ -152,7 +152,7 @@ gti_df = pd.DataFrame({
 hover = alt.selection_single(
     fields=["Date"],
     nearest=True,
-    on="mousemove",
+    on="mouseover",
     empty="none",
     clear="mouseout"
 )
@@ -163,21 +163,33 @@ line = alt.Chart(gti_df).mark_line(color="#4A90E2").encode(
     y=alt.Y("GTI:Q", title="GTI")
 )
 
-# النص المتغير مع الماوس أو يظهر آخر قيمة لو الماوس برا الرسم
+# نقطة صغيرة تظهر عند الماوس
+points = alt.Chart(gti_df).mark_circle(size=60, color="red").encode(
+    x="Date:T",
+    y="GTI:Q"
+).transform_filter(hover)
+
+# نص يتغير مع الماوس
 text = alt.Chart(gti_df).mark_text(
-    align="left", dx=5, dy=-5, fontSize=13, fontWeight="bold"
+    align="left", dx=10, dy=-10, fontSize=13, fontWeight="bold", color="red"
 ).encode(
     x="Date:T",
     y="GTI:Q",
-    text=alt.condition(
-        hover,
-        alt.Text("GTI:Q", format=".2f"),   # لو الماوس موجود
-        alt.value(f"{gti_df.iloc[-1]['GTI']:.2f}")   # آخر قيمة
-    )
+    text=alt.Text("GTI:Q", format=".2f")
+).transform_filter(hover)
+
+# آخر قيمة ثابتة (لو الماوس مش موجود)
+last_value = gti_df.iloc[-1]
+last_label = alt.Chart(pd.DataFrame([last_value])).mark_text(
+    align="left", dx=10, dy=-10, fontSize=13, fontWeight="bold", color="black"
+).encode(
+    x="Date:T",
+    y="GTI:Q",
+    text=alt.Text("GTI:Q", format=".2f")
 )
 
-# دمج الخط + النص
-chart = alt.layer(line, text).add_selection(hover).interactive()
+# دمج كل العناصر
+chart = alt.layer(line, points, text, last_label).add_selection(hover).interactive()
 
 # Change Tooltip to label change Task
 
