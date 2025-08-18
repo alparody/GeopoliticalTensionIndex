@@ -196,26 +196,6 @@ chart = (line + rule + labels + last_value).properties(
     height=400
 ).interactive()
 
-line = alt.Chart(gti_df).mark_line(color="#4A90E2").encode(
-    x=alt.X("Date:T", title="Date"),
-    y=alt.Y("GTI:Q", title="GTI")
-)
-
-tooltip = alt.Chart(gti_df).mark_rule(color="gray").encode(
-    x="Date:T",
-    y="GTI:Q",
-    tooltip=[alt.Tooltip("Date:T", title="Date"), alt.Tooltip("GTI:Q", title="GTI")]
-).add_selection(
-    hover
-).transform_filter(
-    hover
-)
-
-chart = (line + tooltip).properties(
-    width=700,
-    height=400
-).interactive()
-
 
 st.altair_chart(chart, use_container_width=True)
 
