@@ -77,23 +77,21 @@ st.sidebar.header("Analysis Settings")
 default_end = date.today()
 default_start = default_end - timedelta(days=365)
 
-# Sidebar inputs
-if "start_date" not in st.session_state:
-    st.session_state.start_date = default_start
-if "end_date" not in st.session_state:
-    st.session_state.end_date = default_end
-if "today_date" not in st.session_state:
-    st.session_state.today_date = default_end
-    
-start_date = st.sidebar.date_input("From Date", st.session_state.start_date, key="start_input")
-end_date   = st.sidebar.date_input("To Date", st.session_state.end_date, key="end_input")
-today_date = st.sidebar.date_input("Today", st.session_state.today_date, key="today_input")
+# Initialize session_state if not exists
+for key, default in [("start_date", default_start), ("end_date", default_end), ("today_date", default_end)]:
+    if key not in st.session_state:
+        st.session_state[key] = default
+
+# Use session_state directly in date_input
+st.sidebar.date_input("From Date", key="start_date")
+st.sidebar.date_input("To Date", key="end_date")
+st.sidebar.date_input("Today", key="today_date")
 
 if st.sidebar.button("Restore Default Dates"):
     st.session_state.start_date = default_start
-    st.session_state.end_date   = default_end
+    st.session_state.end_date = default_end
     st.session_state.today_date = default_end
-    st.experimental_rerun()    
+    st.experimental_rerun()
 
 # ---------- Main ----------
 weights = read_weights(WEIGHTS_FILE)
