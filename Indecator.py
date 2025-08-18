@@ -1,77 +1,104 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-import base64
-from github import Github
-import io
+import os
+import shutil
+import git
+from datetime import datetime
 
-# إعدادات الصفحة
-st.set_page_config(page_title="Geopolitical Tension Index", layout="wide")
+# ملفات GitHub
+CSV_FILE = "stocks_weights.csv"
+BACKUP_FILE = "backup_weights.csv"
+REPO_PATH = "./"  # غيره لو المشروع في مجلد تاني
 
-# ---- تحميل البيانات من GitHub ----
-GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
-REPO_NAME = "your-username/your-repo"   # ✨ غيره لاسم الريبو عندك
-FILE_PATH = "weights.csv"
+# تحميل البيانات
+def load_data():
+    return pd.read_csv(CSV_FILE)
 
-g = Github(GITHUB_TOKEN)
-repo = g.get_repo(REPO_NAME)
-file_content = repo.get_contents(FILE_PATH)
-weights_df = pd.read_csv(io.StringIO(file_content.decoded_content.decode()))
+# حفظ البيانات + رفعها على GitHub
+def save_data(df, message="Updated weights"):
+    df.to_csv(CSV_FILE, index=False)
 
-# ---- حساب GTI ----
-def calculate_gti(data):
-    return (data["Weight"] * data["Value"]).sum() / data["Weight"].sum()
+    try:
+        repo = git.Repo(REPO_PATH)
+        repo.git.add(CSV_FILE)
+        repo.index.commit(message)
+        origin = repo.remote(name="origin")
+        origin.push()
+    except Exception as e:
+        st.error(f"GitHub push failed: {e}")
 
-# بيانات تجريبية (ممكن تتغير بالـ API لاحقًا)
-weights_df["Value"] = [30, 55, 70, 90]  # قيم مؤقتة للمصادر
-gti_series = pd.Series(weights_df["Value"].rolling(2).mean())  # شكل مؤقت كخط زمني
-gti_today = calculate_gti(weights_df)
+# استرجاع النسخة الأصلية
+def restore_backup():
+    if os.path.exists(BACKUP_FILE):
+        shutil.copy(BACKUP_FILE, CSV_FILE)
+        try:
+            repo = git.Repo(REPO_PATH)
+            repo.git.add(CSV_FILE)
+            repo.index.commit("Restored from backup")
+            origin = repo.remote(name="origin")
+            origin.push()
+        except Exception as e:
+            st.error(f"GitHub push failed: {e}")
+    else:
+        st.error("Backup file not found!")
 
-# ---- لون المؤشر ----
-def get_gti_color(value):
-    if value < 40:
+# حساب GTI
+def calculate_gti(df):
+    gti = (df["Value"] * df["Weight"]).sum() / 100
+    return round(gti, 2)
+
+# لون المربع حسب مستوى الخطورة
+def risk_color(gti):
+    if gti < 40:
         return "green"
-    elif value < 60:
+    elif gti < 60:
         return "yellow"
-    elif value < 80:
+    elif gti < 80:
         return "orange"
     else:
         return "red"
 
-# ---- عرض قيمة GTI ----
+# واجهة Streamlit
+st.title("Geopolitical Tension Index (GTI) Dashboard")
+
+# تحميل البيانات
+df = load_data()
+
+# حساب GTI
+gti_value = calculate_gti(df)
+
+# عرض قيمة GTI ومربع اللون
 st.markdown(
     f"""
-    <h2 style='text-align:center'>
-    🛰️ Geopolitical Tension Index (GTI) اليوم: 
-    <span style='color:{get_gti_color(gti_today)}'>{gti_today:.2f}</span>
-    </h2>
+    <div style="display:flex; align-items:center; font-size:24px; font-weight:bold;">
+        Current GTI: {gti_value}
+        <div style="width:25px; height:25px; background:{risk_color(gti_value)}; margin-left:15px; border-radius:5px;"></div>
+    </div>
     """,
     unsafe_allow_html=True
 )
 
-# ---- الرسم البياني ----
-fig, ax = plt.subplots(figsize=(10,4))
-ax.plot(gti_series.index, gti_series.values, label="GTI", color="blue")
-ax.set_title("GTI Timeline")
+# رسم GTI فقط
+fig, ax = plt.subplots(figsize=(10, 4))
+ax.plot([datetime.today()], [gti_value], "o-", label="GTI", color="blue")
 ax.set_ylabel("GTI Value")
+ax.set_title("GTI Today")
 ax.legend()
 st.pyplot(fig)
 
-# ---- الجدول + الأزرار ----
-st.subheader("جدول الأوزان")
-edited_df = st.data_editor(weights_df, num_rows="dynamic", use_container_width=True)
+# جدول التعديلات
+st.subheader("Adjust Weights")
+edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True)
 
-col1, col2 = st.columns([1,1])
-
+# أزرار التحكم
+col1, col2 = st.columns(2)
 with col1:
-    if st.button("💾 حفظ التعديلات"):
-        csv_buffer = io.StringIO()
-        edited_df.to_csv(csv_buffer, index=False)
-        repo.update_file(FILE_PATH, "Update weights", csv_buffer.getvalue(), file_content.sha)
-        st.success("تم حفظ التعديلات على GitHub ✅")
+    if st.button("💾 Save Changes"):
+        save_data(edited_df, "User updated weights")
+        st.success("Changes saved and pushed to GitHub!")
 
 with col2:
-    if st.button("🔄 استعادة القيم الأصلية"):
-        repo.update_file(FILE_PATH, "Restore original weights", file_content.decoded_content.decode(), file_content.sha)
-        st.warning("تم استعادة القيم الأصلية من GitHub ⚠️")
-
+    if st.button("♻️ Restore Original"):
+        restore_backup()
+        st.success("Restored from backup!")
