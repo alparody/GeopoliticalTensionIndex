@@ -146,7 +146,9 @@ gti_df = pd.DataFrame({
     "GTI": index_pct.values
 })
 
-# Selection عشان نتابع مكان الماوس على المحور X
+# Change Tooltip to label change Task
+
+# Selection للماوس
 hover = alt.selection_single(
     fields=["Date"],
     nearest=True,
@@ -161,21 +163,7 @@ line = alt.Chart(gti_df).mark_line(color="#4A90E2").encode(
     y=alt.Y("GTI:Q", title="GTI")
 )
 
-# تعريف hover selection
-hover = alt.selection_single(
-    fields=["Date"], nearest=True, on="mouseover", empty="none", clear="mouseout"
-)
-
-# خط الرسم الأساسي
-line = alt.Chart(gti_df).mark_line(color="#4A90E2").encode(
-    x="Date:T",
-    y="GTI:Q"
-)
-
-# تحديد أقرب نقطة للماوس
-points = line.transform_filter(hover).mark_circle(size=70, color="red")
-
-# النص المتغير مع الماوس أو آخر قيمة
+# النص المتغير مع الماوس أو يظهر آخر قيمة لو الماوس برا الرسم
 text = alt.Chart(gti_df).mark_text(
     align="left", dx=5, dy=-5, fontSize=13, fontWeight="bold"
 ).encode(
@@ -188,10 +176,10 @@ text = alt.Chart(gti_df).mark_text(
     )
 )
 
-# دمج الكل
-chart = alt.layer(line, points, text).add_selection(hover).interactive()
+# دمج الخط + النص
+chart = alt.layer(line, text).add_selection(hover).interactive()
 
-
+# Change Tooltip to label change Task
 
 st.altair_chart(chart, use_container_width=True)
 
