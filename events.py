@@ -1,38 +1,58 @@
-import requests
+# events.py
 import streamlit as st
 import pandas as pd
+import feedparser
+from datetime import datetime
 
-def show_events_table(start_date, end_date):
+# --------- RSS Sources ---------
+RSS_FEEDS = [
+    "https://www.aljazeera.com/xml/rss/all.xml",
+    "http://feeds.bbci.co.uk/news/world/rss.xml",
+    "http://feeds.reuters.com/reuters/topNews"
+]
+
+# --------- Default Keywords ---------
+DEFAULT_KEYWORDS = ["geopolitics", "economic", "war", "conflict", "trade", "sanctions"]
+
+def fetch_events(start_date, end_date, keywords=None):
+    if keywords is None:
+        keywords = DEFAULT_KEYWORDS
+    
+    all_events = []
+    for feed_url in RSS_FEEDS:
+        feed = feedparser.parse(feed_url)
+        for entry in feed.entries:
+            # تاريخ النشر
+            try:
+                pub_date = datetime(*entry.published_parsed[:6])
+            except:
+                continue
+            # ضمن الفترة المحددة؟
+            if not (start_date <= pub_date.date() <= end_date):
+                continue
+            # نص العنوان يحتوي أي keyword؟
+            if any(k.lower() in entry.title.lower() for k in keywords):
+                all_events.append({
+                    "Date": pub_date.date(),
+                    "Title": entry.title,
+                    "Source": entry.get("source", feed.feed.get("title","Unknown")),
+                    "Link": entry.link
+                })
+    
+    if not all_events:
+        return pd.DataFrame(columns=["Date", "Title", "Source", "Link"])
+    
+    df = pd.DataFrame(all_events)
+    df = df.sort_values("Date", ascending=False)
+    return df
+
+def show_events_table(start_date, end_date, keywords=None):
     try:
-        # تحويل start & end للصيغة المطلوبة YYYYMMDDHHMMSS
-        start = start_date.strftime("%Y%m%d%H%M%S")
-        end = end_date.strftime("%Y%m%d%H%M%S")
-
-        url = (
-            f"https://api.gdeltproject.org/api/v2/events/summary"
-            f"?QUERY=geopolitics"
-            f"&STARTDATETIME={start}"
-            f"&ENDDATETIME={end}"
-            f"&MAXROWS=50"
-            f"&FORMAT=json"
-        )
-
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
-
-        if "toparticles" not in data or not data["toparticles"]:
+        df = fetch_events(start_date, end_date, keywords)
+        if df.empty:
             st.info("No events found for the selected date range.")
-            return
-
-        # نحولها DataFrame
-        df = pd.DataFrame(data["toparticles"])
-        df = df[["url", "title", "seendate"]]
-
-        # نعرضها بتنسيق حلو
-        st.subheader("📰 Related News")
-        for _, row in df.iterrows():
-            st.markdown(f"- [{row['title']}]({row['url']}) ({row['seendate']})")
-
+        else:
+            st.markdown("### Important Events")
+            st.dataframe(df, use_container_width=True)
     except Exception as e:
         st.error(f"Error fetching events: {e}")
