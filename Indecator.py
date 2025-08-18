@@ -154,7 +154,13 @@ hover = alt.selection_single(
     empty="none"
 )
 
-line = alt.Chart(gti_df).mark_line(color="#4A90E2").encode(
+line = alt.Chart(gti_df).mark_line(color=alt.condition(
+        hover,
+        alt.Color("GTI:Q",
+                  scale=alt.Scale(domain=[0, 50, 100], range=["green", "orange", "red"])
+        ),
+        alt.value("transparent")
+    )).encode(
     x=alt.X("Date:T", title="Date"),
     y=alt.Y("GTI:Q", title="GTI")
 )
