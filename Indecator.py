@@ -163,19 +163,18 @@ points = line.mark_circle(size=50).encode(
     opacity=alt.condition(hover, alt.value(1), alt.value(0))
 ).add_selection(hover)
 
-# هنا خلي اللون يتغير حسب قيمة GTI
+# هنا بقى اللون بيتحدد بالـ encoding
 text = line.mark_text(
     align="left", dx=10, dy=-10, fontSize=13, fontWeight="bold"
 ).encode(
     text=alt.condition(hover, alt.Text("GTI:Q", format=".2f"), alt.value("")),
     color=alt.condition(
         hover,
-        alt.condition(
-            "datum.GTI > 50",  # الشرط
-            alt.value("green"),  # لو أكبر من 50
-            alt.value("red")     # لو أقل أو يساوي 50
+        alt.Color(
+            "GTI:Q",
+            scale=alt.Scale(domain=[0, 50, 100], range=["red", "orange", "green"])
         ),
-        alt.value("transparent")  # لو مفيش hover
+        alt.value("transparent")
     )
 )
 
