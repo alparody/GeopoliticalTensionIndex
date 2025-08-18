@@ -134,7 +134,7 @@ st.markdown(
         <!-- الرقم -->
         <span style='font-size:28px; font-weight:bold; color:{color_hex}; margin-right:10px;'>{gti_today:.2f}</span>
         <!-- النص -->
-        <span style='font-size:20px; font-weight:500; color:#333;'>Today's GTI</span>
+        <span style='font-size:20px; font-weight:500; color:color_hex;'>Today's GTI</span>
     </div>
     """,
     unsafe_allow_html=True
