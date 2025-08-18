@@ -72,6 +72,11 @@ def gti_color(val):
     if v<80: return "#e67e22"
     return "#e74c3c"
 
+# ---------- Sidebar ----------
+st.sidebar.header("Analysis Settings")
+default_end = date.today()
+default_start = default_end - timedelta(days=365)
+
 # Sidebar inputs
 if "start_date" not in st.session_state:
     st.session_state.start_date = default_start
@@ -79,7 +84,7 @@ if "end_date" not in st.session_state:
     st.session_state.end_date = default_end
 if "today_date" not in st.session_state:
     st.session_state.today_date = default_end
-
+    
 start_date = st.sidebar.date_input("From Date", st.session_state.start_date, key="start_input")
 end_date   = st.sidebar.date_input("To Date", st.session_state.end_date, key="end_input")
 today_date = st.sidebar.date_input("Today", st.session_state.today_date, key="today_input")
@@ -88,8 +93,7 @@ if st.sidebar.button("Restore Default Dates"):
     st.session_state.start_date = default_start
     st.session_state.end_date   = default_end
     st.session_state.today_date = default_end
-    st.experimental_rerun()
-
+    st.experimental_rerun()    
 
 # ---------- Main ----------
 weights = read_weights(WEIGHTS_FILE)
