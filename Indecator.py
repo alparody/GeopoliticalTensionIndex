@@ -163,8 +163,10 @@ points = line.mark_circle(size=50).encode(
     opacity=alt.condition(hover, alt.value(1), alt.value(0))
 ).add_selection(hover)
 
+tip_color = gti_color("GTI:Q")
+
 text = line.mark_text(
-    align="left", dx=10, dy=-10, fontSize=13, fontWeight="bold", color=color_hex
+    align="left", dx=10, dy=-10, fontSize=13, fontWeight="bold", color=tip_color
 ).encode(
     text=alt.condition(hover, alt.Text("GTI:Q", format=".2f"), alt.value(""))
 )
