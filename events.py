@@ -52,32 +52,13 @@ def show_events_table(start_date, end_date, keywords=None):
         if df.empty:
             st.info("No events found for the selected date range.")
             return
+
         st.markdown("### Important Events")
 
-        # HTML Table with alternating row colors and clickable links
-        table_html = """
-        <table style='width:100%; border-collapse: collapse; font-family: Arial, sans-serif;'>
-            <thead>
-                <tr style='background-color:#f2f2f2;'>
-                    <th style='border-bottom: 2px solid #ddd; padding: 8px; text-align:left;'>Date</th>
-                    <th style='border-bottom: 2px solid #ddd; padding: 8px; text-align:left;'>Title</th>
-                    <th style='border-bottom: 2px solid #ddd; padding: 8px; text-align:left;'>Source</th>
-                </tr>
-            </thead>
-            <tbody>
-        """
-        for i, (_, row) in enumerate(df.iterrows()):
-            bg_color = "#ffffff" if i % 2 == 0 else "#f9f9f9"
-            table_html += f"""
-                <tr style='background-color:{bg_color};'>
-                    <td style='border-bottom: 1px solid #ddd; padding: 6px;'>{row['Date']}</td>
-                    <td style='border-bottom: 1px solid #ddd; padding: 6px;'>
-                        <a href="{row['Link']}" target="_blank" style='text-decoration:none; color:#1a73e8;'>{row['Title']}</a>
-                    </td>
-                    <td style='border-bottom: 1px solid #ddd; padding: 6px;'>{row['Source']}</td>
-                </tr>
-            """
-        table_html += "</tbody></table>"
-        st.markdown(table_html, unsafe_allow_html=True)
+        # نستخدم st.write مع Markdown لكل صف
+        for _, row in df.iterrows():
+            date_str = row['Date'].strftime("%Y-%m-%d") if hasattr(row['Date'], 'strftime') else str(row['Date'])
+            st.markdown(f"- **{date_str}** | [{row['Title']}]({row['Link']}) | {row['Source']}", unsafe_allow_html=True)
+
     except Exception as e:
         st.error(f"Error fetching events: {e}")
