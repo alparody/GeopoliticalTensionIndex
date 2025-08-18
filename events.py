@@ -2,47 +2,46 @@ import requests
 import pandas as pd
 import streamlit as st
 
-API_KEY = "pub_7302d3916fbb4ba7840008da0c481837"
-BASE_URL = "https://newsdata.io/api/1/archive"
-
+GDELT_API_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
 
 def fetch_events(start_date, end_date):
-    """
-    Fetch events from NewsData.io between start_date and end_date
-    """
     try:
-        url = f"{BASE_URL}?apikey={API_KEY}&q=geopolitics&language=en&from_date={start_date}&to_date={end_date}"
-        response = requests.get(url)
+        params = {
+            "query": "geopolitics",
+            "mode": "ArtList",
+            "format": "json",
+            "maxrecords": 20,
+            "sort": "DateDesc",
+            "startdatetime": start_date.replace("-", "") + "000000",
+            "enddatetime": end_date.replace("-", "") + "235959",
+        }
+        response = requests.get(GDELT_API_URL, params=params, timeout=10)
         response.raise_for_status()
         data = response.json()
 
-        if "results" not in data or len(data["results"]) == 0:
-            return pd.DataFrame(columns=["Date", "Event Title", "Source", "Link"])
+        if "articles" not in data:
+            return pd.DataFrame()
 
-        events = []
-        for article in data["results"]:
-            events.append({
-                "Date": article.get("pubDate", "")[:10],
-                "Event Title": article.get("title", ""),
-                "Source": article.get("source_id", ""),
-                "Link": article.get("link", "")
-            })
+        articles = data["articles"]
+        df = pd.DataFrame([{
+            "Date": a.get("seendate", "")[:8],
+            "Title": a.get("title", ""),
+            "Source": a.get("sourceurl", "")
+        } for a in articles])
 
-        return pd.DataFrame(events)
+        # تحسين شكل الجدول
+        if not df.empty:
+            df["Date"] = pd.to_datetime(df["Date"], format="%Y%m%d").dt.strftime("%Y-%m-%d")
 
+        return df
     except Exception as e:
         st.error(f"Error fetching events: {e}")
-        return pd.DataFrame(columns=["Date", "Event Title", "Source", "Link"])
-
+        return pd.DataFrame()
 
 def show_events_table(start_date, end_date):
     df = fetch_events(start_date, end_date)
     if df.empty:
-        st.info("No events found for the selected period.")
+        st.info("No events found for the selected date range.")
     else:
-        st.subheader("🌍 Major Geopolitical Events")
-        # عرض الجدول مع روابط قابلة للضغط
-        st.write(
-            df.to_html(escape=False, index=False),
-            unsafe_allow_html=True
-        )
+        st.subheader("📰 Key Geopolitical Events")
+        st.dataframe(df, use_container_width=True, hide_index=True)
