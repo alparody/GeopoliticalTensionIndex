@@ -53,25 +53,26 @@ def show_events_table(start_date, end_date, keywords=None):
             st.info("No events found for the selected date range.")
             return
         st.markdown("### Important Events")
-        
-        # إنشاء جدول HTML مع لينكات قابلة للنقر
+
+        # HTML Table with alternating row colors and clickable links
         table_html = """
-        <table style='width:100%; border-collapse: collapse;'>
+        <table style='width:100%; border-collapse: collapse; font-family: Arial, sans-serif;'>
             <thead>
-                <tr>
-                    <th style='border-bottom: 1px solid #ddd; padding: 8px; text-align:left;'>Date</th>
-                    <th style='border-bottom: 1px solid #ddd; padding: 8px; text-align:left;'>Title</th>
-                    <th style='border-bottom: 1px solid #ddd; padding: 8px; text-align:left;'>Source</th>
+                <tr style='background-color:#f2f2f2;'>
+                    <th style='border-bottom: 2px solid #ddd; padding: 8px; text-align:left;'>Date</th>
+                    <th style='border-bottom: 2px solid #ddd; padding: 8px; text-align:left;'>Title</th>
+                    <th style='border-bottom: 2px solid #ddd; padding: 8px; text-align:left;'>Source</th>
                 </tr>
             </thead>
             <tbody>
         """
-        for _, row in df.iterrows():
+        for i, (_, row) in enumerate(df.iterrows()):
+            bg_color = "#ffffff" if i % 2 == 0 else "#f9f9f9"
             table_html += f"""
-                <tr>
+                <tr style='background-color:{bg_color};'>
                     <td style='border-bottom: 1px solid #ddd; padding: 6px;'>{row['Date']}</td>
                     <td style='border-bottom: 1px solid #ddd; padding: 6px;'>
-                        <a href="{row['Link']}" target="_blank">{row['Title']}</a>
+                        <a href="{row['Link']}" target="_blank" style='text-decoration:none; color:#1a73e8;'>{row['Title']}</a>
                     </td>
                     <td style='border-bottom: 1px solid #ddd; padding: 6px;'>{row['Source']}</td>
                 </tr>
