@@ -109,7 +109,7 @@ if prices is None or prices.empty:
     st.stop()
 
 # --- Compute weighted cumulative GTI ---
-returns = prices.pct_change().dropna(how="all")
+returns = prices.pct_change(fill_method=None).dropna(how="all")
 available = [s for s in symbols if s in returns.columns]
 weights = weights[weights["symbol"].isin(available)].copy()
 returns = returns[available]
@@ -148,7 +148,7 @@ gti_df = pd.DataFrame({
 })
 
 # Change Tooltip to label change Task
-hover = alt.selection_single(
+hover = alt.selection_point(
     fields=["Date"],
     nearest=True,
     on="mouseover",
@@ -162,18 +162,15 @@ line = alt.Chart(gti_df).mark_line(color="#4A90E2").encode(
 
 points = line.mark_circle(size=50).encode(
     opacity=alt.condition(hover, alt.value(1), alt.value(0))
-).add_selection(hover)
+).add_params(hover)
 
-# النص مع تدريج لوني معكوس (أخضر -> أورانج -> أحمر)
 text = line.mark_text(
     align="left", dx=10, dy=-10, fontSize=13, fontWeight="bold"
 ).encode(
     text=alt.condition(hover, alt.Text("GTI:Q", format=".2f"), alt.value("")),
     color=alt.condition(
         hover,
-        alt.Color("GTI:Q",
-                  scale=alt.Scale(domain=[0, 50, 100], range=["green", "orange", "red"])
-        ),
+        alt.Color("GTI:Q", scale=alt.Scale(domain=[0, 50, 100], range=["green", "orange", "red"])),
         alt.value("transparent")
     )
 )
@@ -210,7 +207,7 @@ with col_buttons:
             else: st.warning(f"Saved locally. GitHub push skipped: {msg}")
         except Exception as e:
             st.warning(f"Saved locally. GitHub push failed: {e}")
-        st.experimental_rerun()
+        st.rerun()
 
     if st.button("♻️ Restore Original (from backup)"):
         if not os.path.exists(BACKUP_FILE):
@@ -229,4 +226,4 @@ with col_buttons:
                     st.success("Restored locally from backup")
             except Exception as e:
                 st.warning(f"Restored locally. GitHub push failed: {e}")
-            st.experimental_rerun()
+            st.rerun()
