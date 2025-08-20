@@ -16,10 +16,16 @@ st.title("Geopolitical Tension Index (GTI)")
 # ---------- Config ----------
 WEIGHTS_FILE = "stocks_weights.csv"
 BACKUP_FILE = "backup_weights.csv"
+LOG_FILE    = "logs.txt"
 GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN") if "GITHUB_TOKEN" in st.secrets else os.environ.get("GITHUB_TOKEN")
 GITHUB_REPO  = st.secrets.get("GITHUB_REPO")  if "GITHUB_REPO"  in st.secrets else os.environ.get("GITHUB_REPO")
 
 # ---------- Helpers ----------
+def log_action(msg):
+    """Append action logs to file."""
+    with open(LOG_FILE, "a", encoding="utf-8") as f:
+        f.write(msg + "\n")
+
 def read_weights(path=WEIGHTS_FILE):
     if not os.path.exists(path):
         st.error(f"Weights file not found: {path}")
@@ -130,65 +136,32 @@ color_hex = gti_color(gti_today)
 st.markdown(
     f"""
     <div style='display:flex; align-items:center; font-family:sans-serif;'>
-        <!-- اللون -->
         <div style='width:28px; height:28px; border-radius:4px; background:{color_hex}; margin-right:10px;'></div>
-        <!-- الرقم -->
         <span style='font-size:28px; font-weight:bold; color:{color_hex}; margin-right:10px;'>{gti_today:.2f}</span>
-        <!-- النص -->
         <span style='font-size:20px; font-weight:500; color:#333;'>Today's GTI</span>
     </div>
     """,
     unsafe_allow_html=True
 )
 
-# Example: تجهيز البيانات
-gti_df = pd.DataFrame({
-    "Date": index_pct.index,
-    "GTI": index_pct.values
-})
-
-# Change Tooltip to label change Task
-hover = alt.selection_point(
-    fields=["Date"],
-    nearest=True,
-    on="mouseover",
-    empty="none"
-)
-
-line = alt.Chart(gti_df).mark_line(color="#4A90E2").encode(
-    x=alt.X("Date:T", title="Date"),
-    y=alt.Y("GTI:Q", title="GTI")
-)
-
-points = line.mark_circle(size=50).encode(
-    opacity=alt.condition(hover, alt.value(1), alt.value(0))
-).add_params(hover)
-
-text = line.mark_text(
-    align="left", dx=10, dy=-10, fontSize=13, fontWeight="bold"
-).encode(
+# --- Chart ---
+gti_df = pd.DataFrame({"Date": index_pct.index, "GTI": index_pct.values})
+hover = alt.selection_point(fields=["Date"], nearest=True, on="mouseover", empty="none")
+line = alt.Chart(gti_df).mark_line(color="#4A90E2").encode(x="Date:T", y="GTI:Q")
+points = line.mark_circle(size=50).encode(opacity=alt.condition(hover, alt.value(1), alt.value(0))).add_params(hover)
+text = line.mark_text(align="left", dx=10, dy=-10, fontSize=13, fontWeight="bold").encode(
     text=alt.condition(hover, alt.Text("GTI:Q", format=".2f"), alt.value("")),
-    color=alt.condition(
-        hover,
-        alt.Color("GTI:Q", scale=alt.Scale(domain=[0, 50, 100], range=["green", "orange", "red"])),
-        alt.value("transparent")
-    )
+    color=alt.condition(hover, alt.Color("GTI:Q", scale=alt.Scale(domain=[0, 50, 100], range=["green","orange","red"])), alt.value("transparent"))
 )
-
 chart = alt.layer(line, points, text).interactive()
 st.altair_chart(chart, use_container_width=True)
 
-# Change Tooltip to label change Task
-
-# Add News Part
-# بعد تحديد start_date و end_date
+# --- News Part ---
 show_events_table(st.session_state.start_date, st.session_state.end_date)
-# End of News Part
 
 # ---------- Table + Save/Restore ----------
 st.markdown("### Adjust Weights Below")
 col_table, col_buttons = st.columns([4,1])
-
 editor_func = getattr(st, "data_editor", None) or getattr(st, "experimental_data_editor", None)
 
 with col_table:
@@ -199,31 +172,40 @@ with col_table:
         edited = weights.copy()
 
 with col_buttons:
+    # Save Changes
     if st.button("💾 Save Changes"):
-        save_weights_local(edited, WEIGHTS_FILE)
         try:
-            ok,msg = push_to_github(edited.to_csv(index=False), WEIGHTS_FILE, commit_message="Update weights via app")
-            if ok: st.success("Saved locally and pushed to GitHub")
-            else: st.warning(f"Saved locally. GitHub push skipped: {msg}")
+            save_weights_local(edited, WEIGHTS_FILE)
+            csv_text = edited.to_csv(index=False)
+            ok, msg = push_to_github(csv_text, WEIGHTS_FILE, commit_message="Update weights via app")
+            if ok:
+                st.success("✅ Saved locally and pushed to GitHub")
+                log_action("Save: Local + GitHub success")
+            else:
+                st.warning(f"⚠️ Saved locally. GitHub push failed: {msg}")
+                log_action(f"Save: Local only. GitHub failed: {msg}")
         except Exception as e:
-            st.warning(f"Saved locally. GitHub push failed: {e}")
+            st.error(f"❌ Error while saving: {e}")
+            log_action(f"Save error: {e}")
         st.rerun()
 
+    # Restore Backup
     if st.button("♻️ Restore Original (from backup)"):
-        if not os.path.exists(BACKUP_FILE):
-            st.error(f"Backup file not found: {BACKUP_FILE}")
-        else:
-            shutil.copy(BACKUP_FILE, WEIGHTS_FILE)
-            # optional push to GitHub
-            try:
-                with open(BACKUP_FILE,"r",encoding="utf-8") as f:
-                    csv_text = f.read()
-                if GITHUB_TOKEN and GITHUB_REPO:
-                    ok,msg = push_to_github(csv_text, WEIGHTS_FILE, commit_message="Restore weights from backup")
-                    if ok: st.success("Restored backup & pushed to GitHub")
-                    else: st.warning(f"Restored locally. GitHub push failed: {msg}")
+        try:
+            if not os.path.exists(BACKUP_FILE):
+                st.error(f"❌ Backup file not found: {BACKUP_FILE}")
+                log_action("Restore error: backup file missing")
+            else:
+                shutil.copy(BACKUP_FILE, WEIGHTS_FILE)
+                with open(BACKUP_FILE,"r",encoding="utf-8") as f: csv_text = f.read()
+                ok, msg = push_to_github(csv_text, WEIGHTS_FILE, commit_message="Restore weights from backup")
+                if ok:
+                    st.success("✅ Restored from backup and pushed to GitHub")
+                    log_action("Restore: Local + GitHub success")
                 else:
-                    st.success("Restored locally from backup")
-            except Exception as e:
-                st.warning(f"Restored locally. GitHub push failed: {e}")
-            st.rerun()
+                    st.warning(f"⚠️ Restored locally. GitHub push failed: {msg}")
+                    log_action(f"Restore: Local only. GitHub failed: {msg}")
+        except Exception as e:
+            st.error(f"❌ Error while restoring: {e}")
+            log_action(f"Restore error: {e}")
+        st.rerun()
