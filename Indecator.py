@@ -60,9 +60,16 @@ def push_to_github(content_str, path_in_repo, commit_message="Update weights"):
         "Accept": "application/vnd.github.v3+json"
     }
 
+    # Debug info
+    st.write("🔍 Debug GitHub Push")
+    st.write(f"Repo: {GITHUB_REPO}")
+    st.write(f"Target path: {path_in_repo}")
+    st.write(f"API URL: {api_url}")
+
     # check if file exists to get sha
     r = requests.get(api_url, headers=headers, params={"ref": "main"})
     content_b64 = base64.b64encode(content_str.encode()).decode()
+
     if r.status_code == 200:
         sha = r.json().get("sha")
         payload = {
@@ -81,7 +88,11 @@ def push_to_github(content_str, path_in_repo, commit_message="Update weights"):
     r2 = requests.put(api_url, headers=headers, json=payload)
     if r2.status_code in (200, 201):
         return True, "OK"
+
+    # Show the actual error response from GitHub
+    st.error(f"GitHub API Response ({r2.status_code}): {r2.text}")
     return False, f"GitHub API error: {r2.status_code} {r2.text}"
+
 
 
 @st.cache_data(show_spinner=False)
