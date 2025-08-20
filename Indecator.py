@@ -53,19 +53,36 @@ def save_weights_local(df, path=WEIGHTS_FILE):
 def push_to_github(content_str, path_in_repo, commit_message="Update weights"):
     if not GITHUB_TOKEN or not GITHUB_REPO:
         return False, "GitHub token or repo not configured"
+
     api_url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path_in_repo}"
-    headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
-    r = requests.get(api_url, headers=headers)
+    headers = {
+        "Authorization": f"token {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+
+    # check if file exists to get sha
+    r = requests.get(api_url, headers=headers, params={"ref": "main"})
     content_b64 = base64.b64encode(content_str.encode()).decode()
     if r.status_code == 200:
         sha = r.json().get("sha")
-        payload = {"message": commit_message, "content": content_b64, "sha": sha}
+        payload = {
+            "message": commit_message,
+            "content": content_b64,
+            "sha": sha,
+            "branch": "main"
+        }
     else:
-        payload = {"message": commit_message, "content": content_b64}
+        payload = {
+            "message": commit_message,
+            "content": content_b64,
+            "branch": "main"
+        }
+
     r2 = requests.put(api_url, headers=headers, json=payload)
-    if r2.status_code in (200,201):
+    if r2.status_code in (200, 201):
         return True, "OK"
     return False, f"GitHub API error: {r2.status_code} {r2.text}"
+
 
 @st.cache_data(show_spinner=False)
 def get_price_data(symbols, start, end):
@@ -187,7 +204,7 @@ with col_buttons:
         except Exception as e:
             st.error(f"❌ Error while saving: {e}")
             log_action(f"Save error: {e}")
-        # st.rerun()
+        st.rerun()
 
     # Restore Backup
     if st.button("♻️ Restore Original (from backup)"):
