@@ -215,7 +215,7 @@ with col_buttons:
         except Exception as e:
             st.error(f"❌ Error while saving: {e}")
             log_action(f"Save error: {e}")
-        # st.rerun()
+        st.rerun()
 
     # Restore Backup
     if st.button("♻️ Restore Original (from backup)"):
