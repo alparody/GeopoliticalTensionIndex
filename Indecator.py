@@ -94,7 +94,7 @@ def push_to_github(content_str, path_in_repo, commit_message="Update weights"):
     return False, f"GitHub API error: {r2.status_code} {r2.text}"
 
 
-
+@st.cache_data(show_spinner=False)
 def get_price_data(symbols, start, end):
     st.write("DEBUG:", st.session_state.start_date, st.session_state.end_date)
     raw = yf.download(symbols, start=start, end=end, auto_adjust=True, progress=False)["Close"].dropna(how="all", axis=1)
@@ -136,7 +136,7 @@ weights = read_weights(WEIGHTS_FILE)
 symbols = weights["symbol"].tolist()
 
 with st.spinner("Fetching price data..."):
-    prices = get_price_data(symbols, str(st.session_state.start_date), str(st.session_state.end_date))
+    prices = get_price_data(symbols, start_date, end_date)
 
 if prices is None or prices.empty:
     st.error("No price data available.")
