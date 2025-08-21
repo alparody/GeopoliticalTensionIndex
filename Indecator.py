@@ -97,8 +97,8 @@ def push_to_github(content_str, path_in_repo, commit_message="Update weights"):
 
 @st.cache_data(show_spinner=False)
 def get_price_data(symbols, start, end):
-    start = str(start)
-    end = str(end)
+    start = pd.to_datetime(start).strftime("%Y-%m-%d")
+    end = pd.to_datetime(end).strftime("%Y-%m-%d")
     raw = yf.download(symbols, start=start, end=end, auto_adjust=True, progress=False)["Close"].dropna(how="all", axis=1)
     return raw
 
