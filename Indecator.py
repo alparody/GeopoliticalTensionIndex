@@ -96,7 +96,7 @@ def push_to_github(content_str, path_in_repo, commit_message="Update weights"):
 
 @st.cache_data(show_spinner=False)
 def get_price_data(symbols, start, end):
-    st.write("DEBUG:", st.session_state.start_date, st.session_state.end_date)
+    # st.write("DEBUG:", st.session_state.start_date, st.session_state.end_date)
     raw = yf.download(symbols, start=start, end=end, auto_adjust=True, progress=False)["Close"].dropna(how="all", axis=1)
     return raw
 
@@ -188,6 +188,7 @@ st.altair_chart(chart, use_container_width=True)
 show_events_table(st.session_state.start_date, st.session_state.end_date)
 
 # ---------- Table + Save/Restore ----------
+"""
 st.markdown("### Adjust Weights Below")
 col_table, col_buttons = st.columns([4,1])
 editor_func = getattr(st, "data_editor", None) or getattr(st, "experimental_data_editor", None)
@@ -237,3 +238,4 @@ with col_buttons:
             st.error(f"❌ Error while restoring: {e}")
             log_action(f"Restore error: {e}")
         st.rerun()
+    """
