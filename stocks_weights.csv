@@ -1,5 +1,5 @@
 symbol,full_name,weight,positive
-GC=F,Gold Futures,15,0
+GC=F,Gold Futures,10,0
 SI=F,Silver Futures,3,0
 HG=F,Copper Futures,2,0
 PL=F,Platinum Futures,4,0
@@ -20,4 +20,4 @@ DX-Y.NYB,Dollar Index,3,0
 SYBV.DE,Germany 10Y Bund,5,0
 ^GSPC,S&P 500 Index,3,0
 EEM,MSCI Emerging Markets,2,0
-^VIX,VIX Volatility Index,15,1
+^VIX,VIX Volatility Index,20,1
