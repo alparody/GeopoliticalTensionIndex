@@ -13,10 +13,18 @@
   {"Country": "South Korea", "MainIndexName": "Kospi", "YahooTicker": "^KS11"},
   {"Country": "Taiwan", "MainIndexName": "TAIEX", "YahooTicker": "^TWII"},
   {"Country": "Thailand", "MainIndexName": "SET Index", "YahooTicker": "^SET.BK"},
-  {"Country": "Vietnam", "MainIndexName": "VN-Index", "YahooTicker": "^VNINDEX.VN"},
+  {"Country": "Vietnam", "MainIndexName": "VN-Index", "YahooTicker": "VNM"},
   {"Country": "Indonesia", "MainIndexName": "IDX Composite", "YahooTicker": "^JKSE"},
   {"Country": "Philippines", "MainIndexName": "PSEi", "YahooTicker": "PSEI.PS"},
   {"Country": "Malaysia", "MainIndexName": "FTSE KLCI", "YahooTicker": "^KLSE"},
   {"Country": "Israel", "MainIndexName": "TA-125", "YahooTicker": "TASE.TA"},
-  {"Country": "Pakistan", "MainIndexName": "KSE-100", "YahooTicker": "PAK"}
+  {"Country": "Pakistan", "MainIndexName": "KSE-100", "YahooTicker": "PAK"},
+  {"Country": "Canada", "MainIndexName": "S&P/TSX Composite Index", "YahooTicker": "^GSPTSE"},
+  {"Country": "Brazil", "MainIndexName": "Bovespa Index", "YahooTicker": "^BVSP"},
+  {"Country": "Mexico", "MainIndexName": "IPC (Mexican Stock Exchange)", "YahooTicker": "^MXX"},
+  {"Country": "Argentina", "MainIndexName": "MERVAL", "YahooTicker": "^MERV"},
+  {"Country": "Turkey", "MainIndexName": "BIST 100", "YahooTicker": "XU100.IS"},
+  {"Country": "South Africa", "MainIndexName": "FTSE/JSE All Share", "YahooTicker": "JSE.JO"},
+  {"Country": "Australia", "MainIndexName": "S&P/ASX 200", "YahooTicker": "^AXJO"},
+  {"Country": "New Zealand", "MainIndexName": "NZX 50 Index", "YahooTicker": "^NZ50"}
 ]
