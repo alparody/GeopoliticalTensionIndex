@@ -140,15 +140,19 @@ def build_results(start_date, end_date, today=None, markets_path: str = MARKETS_
 def classify_color_class(row: pd.Series) -> str:
     y, m, w, d = row.get("yearly"), row.get("monthly"), row.get("weekly"), row.get("daily")
 
-    if pd.notna(y) and y < 0:
-        return "NEG_YEAR"           # red
-    if pd.isna(y) and pd.notna(m) and m < 0:
-        return "NEG_MONTH_NO_YEAR"  # orange
-    if pd.isna(m) and pd.notna(w) and w < 0:
-        return "NEG_WEEK_NO_MONTH"  # yellow
-    if pd.isna(w) and pd.notna(d) and d < 0:
-        return "NEG_DAY_NO_WEEK"    # light green
-    return "ALL_POSITIVE"           # dark green
+    def neg(x):
+        return pd.notna(x) and x < 0
+
+    if neg(y) and neg(m) and neg(w) and neg(d):
+        return "RED"
+    elif neg(m) and neg(w) and neg(d):
+        return "ORANGE"
+    elif neg(w) and neg(d):
+        return "YELLOW"
+    elif neg(d):
+        return "LIGHT_GREEN"
+    else:
+        return "GREEN"
 
 def attach_color_classes(df: pd.DataFrame) -> pd.DataFrame:
     return df.assign(ColorClass=df.apply(classify_color_class, axis=1))
