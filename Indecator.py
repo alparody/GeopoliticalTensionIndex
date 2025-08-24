@@ -9,6 +9,7 @@ import base64
 from datetime import date, timedelta
 import altair as alt
 from events import show_events_table
+from index_analysis import build_results
 
 st.set_page_config(page_title="Geopolitical Tension Index", layout="wide")
 st.title("Geopolitical Tension Index (GTI)")
@@ -186,56 +187,86 @@ st.altair_chart(chart, use_container_width=True)
 
 # --- News Part ---
 show_events_table(st.session_state.start_date, st.session_state.end_date)
+st.title("📊 مؤشر الأسواق العالمية - Global Map View")
+
+# قراءة النتائج
+df = build_results()
+
+# تحويل النتائج إلى حالة ألوان
+def classify_color(row):
+    if row["yearly"] is not None and row["yearly"] < 0:
+        return "red"         # سالب سنوي
+    elif row["yearly"] is None and row["monthly"] is not None and row["monthly"] < 0:
+        return "orange"      # ما فيش سنوي بس في سالب شهري
+    elif row["monthly"] is None and row["weekly"] is not None and row["weekly"] < 0:
+        return "yellow"      # ما فيش شهري
+    elif row["weekly"] is None and row["daily"] is not None and row["daily"] < 0:
+        return "lightgreen"  # ما فيش أسبوعي
+    else:
+        return "darkgreen"   # كله إيجابي
+
+df["color"] = df.apply(classify_color, axis=1)
+
+# نعرض خريطة
+fig = px.choropleth(
+    df,
+    locations="Country",
+    locationmode="country names",
+    color="color",
+    title="أداء الأسواق العالمية حسب الفترة الزمنية",
+)
+
+st.plotly_chart(fig, use_container_width=True)
 
 # ---------- Table + Save/Restore ----------
-# if 1>2:
-st.markdown("### Adjust Weights Below")
-col_table, col_buttons = st.columns([4,1])
-editor_func = getattr(st, "data_editor", None) or getattr(st, "experimental_data_editor", None)
-
-with col_table:
-    if editor_func:
-        edited = editor_func(weights, num_rows="dynamic", use_container_width=True, key="weights_editor")
-    else:
-        st.dataframe(weights, use_container_width=True)
-        edited = weights.copy()
-
-with col_buttons:
-    # Save Changes
-    if st.button("💾 Save Changes"):
-        try:
-            save_weights_local(edited, WEIGHTS_FILE)
-            csv_text = edited.to_csv(index=False)
-            ok, msg = push_to_github(csv_text, WEIGHTS_FILE, commit_message="Update weights via app")
-            if ok:
-                st.success("✅ Saved locally and pushed to GitHub")
-                log_action("Save: Local + GitHub success")
-            else:
-                st.warning(f"⚠️ Saved locally. GitHub push failed: {msg}")
-                log_action(f"Save: Local only. GitHub failed: {msg}")
-        except Exception as e:
-            st.error(f"❌ Error while saving: {e}")
-            log_action(f"Save error: {e}")
-        st.rerun()
-
-    # Restore Backup
-    if st.button("♻️ Restore Original (from backup)"):
-        try:
-            if not os.path.exists(BACKUP_FILE):
-                st.error(f"❌ Backup file not found: {BACKUP_FILE}")
-                log_action("Restore error: backup file missing")
-            else:
-                shutil.copy(BACKUP_FILE, WEIGHTS_FILE)
-                with open(BACKUP_FILE,"r",encoding="utf-8") as f: csv_text = f.read()
-                ok, msg = push_to_github(csv_text, WEIGHTS_FILE, commit_message="Restore weights from backup")
+if 1>2:
+    st.markdown("### Adjust Weights Below")
+    col_table, col_buttons = st.columns([4,1])
+    editor_func = getattr(st, "data_editor", None) or getattr(st, "experimental_data_editor", None)
+    
+    with col_table:
+        if editor_func:
+            edited = editor_func(weights, num_rows="dynamic", use_container_width=True, key="weights_editor")
+        else:
+            st.dataframe(weights, use_container_width=True)
+            edited = weights.copy()
+    
+    with col_buttons:
+        # Save Changes
+        if st.button("💾 Save Changes"):
+            try:
+                save_weights_local(edited, WEIGHTS_FILE)
+                csv_text = edited.to_csv(index=False)
+                ok, msg = push_to_github(csv_text, WEIGHTS_FILE, commit_message="Update weights via app")
                 if ok:
-                    st.success("✅ Restored from backup and pushed to GitHub")
-                    log_action("Restore: Local + GitHub success")
+                    st.success("✅ Saved locally and pushed to GitHub")
+                    log_action("Save: Local + GitHub success")
                 else:
-                    st.warning(f"⚠️ Restored locally. GitHub push failed: {msg}")
-                    log_action(f"Restore: Local only. GitHub failed: {msg}")
-        except Exception as e:
-            st.error(f"❌ Error while restoring: {e}")
-            log_action(f"Restore error: {e}")
-        st.rerun()
-
+                    st.warning(f"⚠️ Saved locally. GitHub push failed: {msg}")
+                    log_action(f"Save: Local only. GitHub failed: {msg}")
+            except Exception as e:
+                st.error(f"❌ Error while saving: {e}")
+                log_action(f"Save error: {e}")
+            st.rerun()
+    
+        # Restore Backup
+        if st.button("♻️ Restore Original (from backup)"):
+            try:
+                if not os.path.exists(BACKUP_FILE):
+                    st.error(f"❌ Backup file not found: {BACKUP_FILE}")
+                    log_action("Restore error: backup file missing")
+                else:
+                    shutil.copy(BACKUP_FILE, WEIGHTS_FILE)
+                    with open(BACKUP_FILE,"r",encoding="utf-8") as f: csv_text = f.read()
+                    ok, msg = push_to_github(csv_text, WEIGHTS_FILE, commit_message="Restore weights from backup")
+                    if ok:
+                        st.success("✅ Restored from backup and pushed to GitHub")
+                        log_action("Restore: Local + GitHub success")
+                    else:
+                        st.warning(f"⚠️ Restored locally. GitHub push failed: {msg}")
+                        log_action(f"Restore: Local only. GitHub failed: {msg}")
+            except Exception as e:
+                st.error(f"❌ Error while restoring: {e}")
+                log_action(f"Restore error: {e}")
+            st.rerun()
+    
