@@ -10,7 +10,7 @@ import altair as alt
 import plotly.express as px
 from datetime import date, timedelta
 from events import show_events_table
-from index_analysis import build_results
+from index_analysis import plot_world_map
 
 st.set_page_config(page_title="Geopolitical Tension Index", layout="wide")
 st.title("Geopolitical Tension Index (GTI)")
@@ -187,11 +187,18 @@ chart = alt.layer(line, points, text).interactive()
 st.altair_chart(chart, use_container_width=True)
 
 # --- News Part ---
+# رسم الخريطة بناءً على نفس الفترة الزمنية
+fig = plot_world_map(gti_df, start_date, end_date)
+st.plotly_chart(fig, use_container_width=True)
+
 show_events_table(st.session_state.start_date, st.session_state.end_date)
 st.title("📊 مؤشر الأسواق العالمية - Global Map View")
 
 # قراءة النتائج
-df = build_results()
+df = build_results(start_date, end_date, today_date)
+# ولو عايز عمود التصنيف جاهز:
+from index_analysis import attach_color_classes
+df = attach_color_classes(df)
 
 # تحويل النتائج إلى حالة ألوان
 def classify_color(row):
