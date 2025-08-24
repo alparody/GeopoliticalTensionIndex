@@ -162,17 +162,23 @@ def plot_world_map(start_date, end_date, today=None, markets_path: str = MARKETS
     df = build_results(start_date, end_date, today, markets_path)
     df = attach_color_classes(df)
     fig = px.choropleth(
-        df,
-        locations="ISO3",
-        color="ColorClass",
-        hover_name="Country",
-        title=f"Global Markets Performance ({start_date} to {end_date})",
-        color_discrete_map={
-            "NEG_YEAR": "red",
-            "NEG_MONTH_NO_YEAR": "orange",
-            "NEG_WEEK_NO_MONTH": "yellow",
-            "NEG_DAY_NO_WEEK": "lightgreen",
-            "ALL_POSITIVE": "green"
-        }
-    )
+    df,
+    locations="ISO3",
+    color="ColorClass",
+    hover_name="Country",
+    title=f"Global Markets Performance ({start_date} to {end_date})",
+    color_discrete_map={
+        "RED": "red",
+        "ORANGE": "orange",
+        "YELLOW": "yellow",
+        "LIGHT_GREEN": "lightgreen",
+        "GREEN": "green"
+    },
+    labels={
+        "RED": "Critical",
+        "ORANGE": "Unstable",
+        "YELLOW": "Not Stable",
+        "LIGHT_GREEN": "OK",
+        "GREEN": "No Problem"
+    })
     return fig
