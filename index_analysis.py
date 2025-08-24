@@ -4,10 +4,9 @@ import json
 from datetime import timedelta
 import pandas as pd
 import yfinance as yf
+import plotly.express as px
 
 # ---------- Config ----------
-# ملف قائمة الأسواق (الـ JSON النهائي اللي عندك). هيقرأه لو موجود،
-# ولو مش موجود هيستخدم النسخة الاحتياطية الموجودة هنا في الكود.
 MARKETS_FILE = "markets_universe.json"
 
 FALLBACK_MARKETS = [
@@ -33,33 +32,16 @@ FALLBACK_MARKETS = [
   {"Country": "Pakistan", "MainIndexName": "KSE-100", "YahooTicker": "PAK"}
 ]
 
-# ISO3 codes عشان الخريطة تشتغل بـ locationmode="ISO-3"
 ISO3_MAP = {
-    "USA": "USA",
-    "Germany": "DEU",
-    "UK": "GBR",
-    "France": "FRA",
-    "Japan": "JPN",
-    "China": "CHN",
-    "Hong Kong": "HKG",
-    "India": "IND",
-    "Saudi Arabia": "SAU",
-    "Egypt": "EGY",
-    "Singapore": "SGP",
-    "South Korea": "KOR",
-    "Taiwan": "TWN",
-    "Thailand": "THA",
-    "Vietnam": "VNM",
-    "Indonesia": "IDN",
-    "Philippines": "PHL",
-    "Malaysia": "MYS",
-    "Israel": "ISR",
-    "Pakistan": "PAK",
+    "USA": "USA", "Germany": "DEU", "UK": "GBR", "France": "FRA", "Japan": "JPN",
+    "China": "CHN", "Hong Kong": "HKG", "India": "IND", "Saudi Arabia": "SAU",
+    "Egypt": "EGY", "Singapore": "SGP", "South Korea": "KOR", "Taiwan": "TWN",
+    "Thailand": "THA", "Vietnam": "VNM", "Indonesia": "IDN", "Philippines": "PHL",
+    "Malaysia": "MYS", "Israel": "ISR", "Pakistan": "PAK"
 }
 
 # ---------- Helpers ----------
 def load_markets(path: str = MARKETS_FILE) -> pd.DataFrame:
-    """Load markets JSON; fallback to embedded list if file not found."""
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -74,11 +56,8 @@ def load_markets(path: str = MARKETS_FILE) -> pd.DataFrame:
     return df
 
 def _download_close(ticker: str, start, end) -> pd.Series:
-    """Download adjusted close for a single ticker; return clean Series."""
     try:
-        df = yf.download(
-            ticker, start=start, end=end, auto_adjust=True, progress=False
-        )
+        df = yf.download(ticker, start=start, end=end, auto_adjust=True, progress=False)
         if df is None or df.empty or "Close" not in df:
             return pd.Series(dtype="float64")
         return df["Close"].dropna()
@@ -86,7 +65,6 @@ def _download_close(ticker: str, start, end) -> pd.Series:
         return pd.Series(dtype="float64")
 
 def _closest_prior(index: pd.DatetimeIndex, target) -> pd.Timestamp | None:
-    """Find last available timestamp in index <= target."""
     ts = pd.to_datetime(target)
     pos = index.searchsorted(ts, side="right") - 1
     if pos < 0:
@@ -94,7 +72,6 @@ def _closest_prior(index: pd.DatetimeIndex, target) -> pd.Timestamp | None:
     return index[pos]
 
 def _pct_change_over(series: pd.Series, days: int, asof) -> float | None:
-    """Percent change over `days` ending at `asof` using last available prices."""
     if series.empty:
         return None
     end_idx = _closest_prior(series.index, asof)
@@ -111,13 +88,11 @@ def _pct_change_over(series: pd.Series, days: int, asof) -> float | None:
     return (end_px - start_px) / start_px * 100.0
 
 def _pct_change_daily(series: pd.Series, asof) -> float | None:
-    """1D change = last close vs previous trading close."""
     if series.empty:
         return None
     end_idx = _closest_prior(series.index, asof)
     if end_idx is None:
         return None
-    # previous available bar
     loc = series.index.get_loc(end_idx)
     if isinstance(loc, slice):
         loc = series.index.slice_indexer(end_idx, end_idx).stop - 1
@@ -132,84 +107,68 @@ def _pct_change_daily(series: pd.Series, asof) -> float | None:
 
 # ---------- Public API ----------
 def build_results(start_date, end_date, today=None, markets_path: str = MARKETS_FILE) -> pd.DataFrame:
-    """
-    يبني جدول النتائج للفترة نفسها المستخدمة في GTI.
-    يرجّع الأعمدة:
-    ['Country','ISO3','MainIndexName','YahooTicker','status','daily','weekly','monthly','yearly']
-    كل الأعمدة النسبية float (أو NaN عند عدم التوفر).
-    """
     if today is None:
         today = end_date
 
     markets = load_markets(markets_path)
-
-    # نزود هامش تحميل 400 يوم قبل البداية لضمان حساب السنوي لو end قريب من start
     dl_start = pd.to_datetime(start_date) - timedelta(days=400)
     dl_end   = pd.to_datetime(end_date) + timedelta(days=1)
 
     rows = []
     for _, m in markets.iterrows():
-        country = m["Country"]
-        ticker  = m["YahooTicker"]
-        name    = m.get("MainIndexName", ticker)
-        iso3    = m.get("ISO3")
-
+        country, ticker, name, iso3 = m["Country"], m["YahooTicker"], m.get("MainIndexName", ""), m.get("ISO3")
         s = _download_close(ticker, dl_start, dl_end)
         status = "✅ OK" if not s.empty else "❌ Not Found"
-
         if s.empty:
-            row = dict(
-                Country=country, ISO3=iso3, MainIndexName=name, YahooTicker=ticker,
-                status=status, daily=None, weekly=None, monthly=None, yearly=None
-            )
+            row = dict(Country=country, ISO3=iso3, MainIndexName=name, YahooTicker=ticker,
+                       status=status, daily=None, weekly=None, monthly=None, yearly=None)
         else:
             d   = _pct_change_daily(s, today)
             w   = _pct_change_over(s, 7,   today)
             mon = _pct_change_over(s, 30,  today)
             yr  = _pct_change_over(s, 365, today)
-            row = dict(
-                Country=country, ISO3=iso3, MainIndexName=name, YahooTicker=ticker,
-                status=status, daily=d, weekly=w, monthly=mon, yearly=yr
-            )
+            row = dict(Country=country, ISO3=iso3, MainIndexName=name, YahooTicker=ticker,
+                       status=status, daily=d, weekly=w, monthly=mon, yearly=yr)
         rows.append(row)
 
     df = pd.DataFrame(rows)
-    # تأكد أن الأرقام float
     for col in ["daily", "weekly", "monthly", "yearly"]:
         df[col] = pd.to_numeric(df[col], errors="coerce")
     return df
 
-# (اختياري) لو عايز نفس منطق الألوان يتضاف هنا:
+# ---------- Color Classification ----------
 def classify_color_class(row: pd.Series) -> str:
-    """
-    القاعدة المطلوبة:
-    - لو السنوي موجود وسالب -> أحمر (NEG_YEAR)
-    - لو السنوي مفقود & الشهري موجود وسالب -> برتقالي (NEG_MONTH_NO_YEAR)
-    - لو الشهري مفقود & الأسبوعي موجود وسالب -> أصفر (NEG_WEEK_NO_MONTH)
-    - لو الأسبوعي مفقود & اليومي موجود وسالب -> أخضر فاتح (NEG_DAY_NO_WEEK)
-    - غير كده -> أخضر غامق (ALL_POSITIVE)
-    """
-    y = row.get("yearly")
-    m = row.get("monthly")
-    w = row.get("weekly")
-    d = row.get("daily")
+    y, m, w, d = row.get("yearly"), row.get("monthly"), row.get("weekly"), row.get("daily")
 
-    def neg(x):
-        try:
-            return pd.notna(x) and float(x) < 0
-        except Exception:
-            return False
-
-    if pd.notna(y) and neg(y):
-        return "NEG_YEAR"  # red
-    if pd.isna(y) and pd.notna(m) and float(m) < 0:
+    if pd.notna(y) and y < 0:
+        return "NEG_YEAR"           # red
+    if pd.isna(y) and pd.notna(m) and m < 0:
         return "NEG_MONTH_NO_YEAR"  # orange
-    if pd.isna(m) and pd.notna(w) and float(w) < 0:
+    if pd.isna(m) and pd.notna(w) and w < 0:
         return "NEG_WEEK_NO_MONTH"  # yellow
-    if pd.isna(w) and pd.notna(d) and float(d) < 0:
-        return "NEG_DAY_NO_WEEK"  # light green
-    return "ALL_POSITIVE"  # dark green
+    if pd.isna(w) and pd.notna(d) and d < 0:
+        return "NEG_DAY_NO_WEEK"    # light green
+    return "ALL_POSITIVE"           # dark green
 
 def attach_color_classes(df: pd.DataFrame) -> pd.DataFrame:
-    """يرجع DataFrame ومعاه عمود ColorClass للتلوين في الخريطة."""
     return df.assign(ColorClass=df.apply(classify_color_class, axis=1))
+
+# ---------- Plot World Map ----------
+def plot_world_map(start_date, end_date, today=None, markets_path: str = MARKETS_FILE):
+    df = build_results(start_date, end_date, today, markets_path)
+    df = attach_color_classes(df)
+    fig = px.choropleth(
+        df,
+        locations="ISO3",
+        color="ColorClass",
+        hover_name="Country",
+        title=f"Global Markets Performance ({start_date} to {end_date})",
+        color_discrete_map={
+            "NEG_YEAR": "red",
+            "NEG_MONTH_NO_YEAR": "orange",
+            "NEG_WEEK_NO_MONTH": "yellow",
+            "NEG_DAY_NO_WEEK": "lightgreen",
+            "ALL_POSITIVE": "green"
+        }
+    )
+    return fig
