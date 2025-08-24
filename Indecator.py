@@ -140,13 +140,13 @@ text = line.mark_text(align="left", dx=10, dy=-10, fontSize=13, fontWeight="bold
 chart = alt.layer(line, points, text).interactive()
 st.altair_chart(chart, use_container_width=True)
 
-# --- World Map ---
+# --- World Map & Table ---
 fig = plot_world_map(start_date=start_date, end_date=end_date, today=today_date)
 st.plotly_chart(fig, use_container_width=True)
 
 show_events_table(start_date, end_date)
-st.title("📊 مؤشر الأسواق العالمية - Global Map View")
 
+st.title("📊 مؤشر الأسواق العالمية - Global Map View")
 df = build_results(start_date, end_date, today_date)
 df = attach_color_classes(df)
 st.dataframe(df, use_container_width=True)
