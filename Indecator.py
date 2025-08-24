@@ -194,21 +194,23 @@ df = build_results()
 
 # تحويل النتائج إلى حالة ألوان
 def classify_color(row):
-    yearly  = row.get("yearly")
-    monthly = row.get("monthly")
-    weekly  = row.get("weekly")
-    daily   = row.get("daily")
+    yearly = row.get("Yearly Change")
+    monthly = row.get("Monthly Change")
+    weekly = row.get("Weekly Change")
+    daily = row.get("Daily Change")
 
-    if pd.notna(yearly) and yearly < 0:
-        return "red"         # سالب سنوي
-    elif pd.isna(yearly) and pd.notna(monthly) and monthly < 0:
-        return "orange"      # ما فيش سنوي بس في سالب شهري
-    elif pd.isna(monthly) and pd.notna(weekly) and weekly < 0:
-        return "yellow"      # ما فيش شهري
-    elif pd.isna(weekly) and pd.notna(daily) and daily < 0:
-        return "lightgreen"  # ما فيش أسبوعي
+    # لو yearly مش NaN وقيمة واحدة
+    if pd.notna(yearly) and float(yearly) < 0:
+        return "red"
+    elif pd.notna(monthly) and float(monthly) < 0:
+        return "orange"
+    elif pd.notna(weekly) and float(weekly) < 0:
+        return "yellow"
+    elif pd.notna(daily) and float(daily) < 0:
+        return "lightyellow"
     else:
-        return "darkgreen"   # كله إيجابي
+        return "green"
+
 df["color"] = df.apply(classify_color, axis=1)
 
 # نعرض خريطة
