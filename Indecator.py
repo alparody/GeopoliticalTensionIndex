@@ -6,8 +6,9 @@ import os
 import shutil
 import requests
 import base64
-from datetime import date, timedelta
 import altair as alt
+import plotly.express as px
+from datetime import date, timedelta
 from events import show_events_table
 from index_analysis import build_results
 
