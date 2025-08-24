@@ -1,0 +1,22 @@
+[
+  {"Country": "USA", "MainIndexName": "S&P 500", "YahooTicker": "^GSPC"},
+  {"Country": "Germany", "MainIndexName": "DAX Performance Index", "YahooTicker": "^GDAXI"},
+  {"Country": "UK", "MainIndexName": "FTSE 100", "YahooTicker": "^FTSE"},
+  {"Country": "France", "MainIndexName": "CAC 40", "YahooTicker": "^FCHI"},
+  {"Country": "Japan", "MainIndexName": "Nikkei 225", "YahooTicker": "^N225"},
+  {"Country": "China", "MainIndexName": "SSE Composite Index", "YahooTicker": "000001.SS"},
+  {"Country": "Hong Kong", "MainIndexName": "Hang Seng Index", "YahooTicker": "^HSI"},
+  {"Country": "India", "MainIndexName": "Nifty 50", "YahooTicker": "^NSEI"},
+  {"Country": "Saudi Arabia", "MainIndexName": "Tadawul All Share Index (TASI)", "YahooTicker": "^TASI.SR"},
+  {"Country": "Egypt", "MainIndexName": "Commercial International Bank (CIB)", "YahooTicker": "COMI.CA"},
+  {"Country": "Singapore", "MainIndexName": "Straits Times Index (STI)", "YahooTicker": "^STI"},
+  {"Country": "South Korea", "MainIndexName": "Kospi", "YahooTicker": "^KS11"},
+  {"Country": "Taiwan", "MainIndexName": "TAIEX", "YahooTicker": "^TWII"},
+  {"Country": "Thailand", "MainIndexName": "SET Index", "YahooTicker": "^SET.BK"},
+  {"Country": "Vietnam", "MainIndexName": "VN-Index", "YahooTicker": "^VNINDEX.VN"},
+  {"Country": "Indonesia", "MainIndexName": "IDX Composite", "YahooTicker": "^JKSE"},
+  {"Country": "Philippines", "MainIndexName": "PSEi", "YahooTicker": "PSEI.PS"},
+  {"Country": "Malaysia", "MainIndexName": "FTSE KLCI", "YahooTicker": "^KLSE"},
+  {"Country": "Israel", "MainIndexName": "TA-125", "YahooTicker": "TASE.TA"},
+  {"Country": "Pakistan", "MainIndexName": "KSE-100", "YahooTicker": "PAK"}
+]
