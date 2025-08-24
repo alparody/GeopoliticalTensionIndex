@@ -158,27 +158,43 @@ def attach_color_classes(df: pd.DataFrame) -> pd.DataFrame:
     return df.assign(ColorClass=df.apply(classify_color_class, axis=1))
 
 # ---------- Plot World Map ----------
-def plot_world_map(start_date, end_date, today=None, markets_path: str = MARKETS_FILE):
-    df = build_results(start_date, end_date, today, markets_path)
+def plot_world_map(start_date, end_date, today):
+    # جهّز البيانات
+    df = build_results(start_date, end_date, today)
     df = attach_color_classes(df)
-    fig = px.choropleth(
-    df,
-    locations="ISO3",
-    color="ColorClass",
-    hover_name="Country",
-    title=f"Global Markets Performance ({start_date} to {end_date})",
-    color_discrete_map={
-        "RED": "red",
-        "ORANGE": "orange",
-        "YELLOW": "yellow",
-        "LIGHT_GREEN": "lightgreen",
-        "GREEN": "green"
-    },
-    labels={
-        "RED": "Critical",
-        "ORANGE": "Unstable",
-        "YELLOW": "Not Stable",
+
+    # خريطة من الألوان إلى labels أوضح
+    label_map = {
+        "GREEN": "No Problem",
         "LIGHT_GREEN": "OK",
-        "GREEN": "No Problem"
-    })
+        "YELLOW": "Not Stable",
+        "ORANGE": "Unstable",
+        "RED": "Critical"
+    }
+
+    # إنشاء عمود للـ legend
+    df["ColorLabel"] = df["ColorClass"].map(label_map)
+
+    # الخريطة
+    fig = px.choropleth(
+        df,
+        locations="ISO3",              # كود الدولة
+        color="ColorLabel",            # التصنيف الجديد
+        hover_name="Country",          # اسم الدولة
+        hover_data=["ColorLabel"],     # يظهر التصنيف عند الوقوف
+        title=f"🌍 Global Markets Performance ({start_date} → {end_date})",
+        color_discrete_map={
+            "No Problem": "green",
+            "OK": "lightgreen",
+            "Not Stable": "yellow",
+            "Unstable": "orange",
+            "Critical": "red"
+        }
+    )
+
+    fig.update_layout(
+        legend_title="Status",   # عنوان الـ Legend
+        margin={"r":0,"t":30,"l":0,"b":0}
+    )
+
     return fig
