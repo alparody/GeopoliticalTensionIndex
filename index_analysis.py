@@ -88,13 +88,9 @@ def _pct_change_over(series: pd.Series, days: int, asof) -> float | None:
     return (end_px - start_px) / start_px * 100.0
 
 def _pct_change_daily(series: pd.Series, asof) -> float | None:
-    # نشيل أي قيم ناقصة
-    series = series.dropna()
-
+    series = series.dropna()  
     if series.empty or len(series) < 2:
         return None
-
-    # نجيب آخر تاريخ <= asof
     end_idx = _closest_prior(series.index, asof)
     if end_idx is None:
         return None
@@ -104,9 +100,16 @@ def _pct_change_daily(series: pd.Series, asof) -> float | None:
     prev_pos = loc - 1
     if prev_pos < 0:
         return None
-    # تحويل القيم لأرقام بأمان
-    last_px = pd.to_numeric(series.iloc[loc], errors="coerce")
-    prev_px = pd.to_numeric(series.iloc[prev_pos], errors="coerce")
+    last_px = pd.to_numeric(series.iloc[-1], errors="coerce")
+    prev_px = pd.to_numeric(series.iloc[-2], errors="coerce")
+
+    # 👇 هنا نحول القيم إلى float بشكل صريح
+    if last_px is None or prev_px is None:
+        return None
+    if isinstance(last_px, (pd.Series, pd.DataFrame)):
+        last_px = last_px.values[0]
+    if isinstance(prev_px, (pd.Series, pd.DataFrame)):
+        prev_px = prev_px.values[0]
     if pd.isna(last_px) or pd.isna(prev_px):
         return None
     return (last_px - prev_px) / prev_px * 100
