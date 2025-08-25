@@ -88,8 +88,13 @@ def _pct_change_over(series: pd.Series, days: int, asof) -> float | None:
     return (end_px - start_px) / start_px * 100.0
 
 def _pct_change_daily(series: pd.Series, asof) -> float | None:
-    if series.empty:
+    # نشيل أي قيم ناقصة
+    series = series.dropna()
+
+    if series.empty or len(series) < 2:
         return None
+
+    # نجيب آخر تاريخ <= asof
     end_idx = _closest_prior(series.index, asof)
     if end_idx is None:
         return None
@@ -99,11 +104,12 @@ def _pct_change_daily(series: pd.Series, asof) -> float | None:
     prev_pos = loc - 1
     if prev_pos < 0:
         return None
-    prev_px = float(series.iloc[prev_pos])
-    last_px = float(series.iloc[loc])
-    if prev_px == 0:
+    # تحويل القيم لأرقام بأمان
+    last_px = pd.to_numeric(series.iloc[loc], errors="coerce")
+    prev_px = pd.to_numeric(series.iloc[prev_pos], errors="coerce")
+    if pd.isna(last_px) or pd.isna(prev_px):
         return None
-    return (last_px - prev_px) / prev_px * 100.0
+    return (last_px - prev_px) / prev_px * 100
 
 # ---------- Public API ----------
 def build_results(start_date, end_date, today=None, markets_path: str = MARKETS_FILE) -> pd.DataFrame:
