@@ -87,32 +87,24 @@ def _pct_change_over(series: pd.Series, days: int, asof) -> float | None:
         return None
     return (end_px - start_px) / start_px * 100.0
 
-def _pct_change_daily(series: pd.Series, asof) -> float | None:
-    series = series.dropna()  
-    if series.empty or len(series) < 2:
-        return None
-    end_idx = _closest_prior(series.index, asof)
-    if end_idx is None:
-        return None
-    loc = series.index.get_loc(end_idx)
-    if isinstance(loc, slice):
-        loc = series.index.slice_indexer(end_idx, end_idx).stop - 1
-    prev_pos = loc - 1
-    if prev_pos < 0:
-        return None
-    last_px = pd.to_numeric(series.iloc[-1], errors="coerce")
-    prev_px = pd.to_numeric(series.iloc[-2], errors="coerce")
+def _pct_change_over(series, days, today):
+    try:
+        end_idx   = series.index.get_loc(today, method="ffill")
+        start_idx = series.index[end_idx - days]
 
-    # 👇 هنا نحول القيم إلى float بشكل صريح
-    if last_px is None or prev_px is None:
+        # حل مشكلة Series بدل قيمة واحدة
+        val = series.loc[start_idx]
+        if isinstance(val, pd.Series):
+            start_px = float(val.iloc[-1])   # ناخد آخر قيمة
+        else:
+            start_px = float(val)
+
+        end_px = float(series.iloc[end_idx])
+        return (end_px - start_px) / start_px * 100
+
+    except Exception as e:
+        print(f"Error in pct_change_over: {e}")
         return None
-    if isinstance(last_px, (pd.Series, pd.DataFrame)):
-        last_px = last_px.values[0]
-    if isinstance(prev_px, (pd.Series, pd.DataFrame)):
-        prev_px = prev_px.values[0]
-    if pd.isna(last_px) or pd.isna(prev_px):
-        return None
-    return (last_px - prev_px) / prev_px * 100
 
 # ---------- Public API ----------
 def build_results(start_date, end_date, today=None, markets_path: str = MARKETS_FILE) -> pd.DataFrame:
