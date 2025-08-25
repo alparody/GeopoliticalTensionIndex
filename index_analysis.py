@@ -87,24 +87,23 @@ def _pct_change_over(series: pd.Series, days: int, asof) -> float | None:
         return None
     return (end_px - start_px) / start_px * 100.0
 
-def _pct_change_over(series, days, today):
-    try:
-        end_idx   = series.index.get_loc(today, method="ffill")
-        start_idx = series.index[end_idx - days]
-
-        # حل مشكلة Series بدل قيمة واحدة
-        val = series.loc[start_idx]
-        if isinstance(val, pd.Series):
-            start_px = float(val.iloc[-1])   # ناخد آخر قيمة
-        else:
-            start_px = float(val)
-
-        end_px = float(series.iloc[end_idx])
-        return (end_px - start_px) / start_px * 100
-
-    except Exception as e:
-        print(f"Error in pct_change_over: {e}")
+def _pct_change_daily(series: pd.Series, asof) -> float | None:
+    if series.empty:
         return None
+    end_idx = _closest_prior(series.index, asof)
+    if end_idx is None:
+        return None
+    loc = series.index.get_loc(end_idx)
+    if isinstance(loc, slice):
+        loc = series.index.slice_indexer(end_idx, end_idx).stop - 1
+    prev_pos = loc - 1
+    if prev_pos < 0:
+        return None
+    prev_px = float(series.iloc[prev_pos])
+    last_px = float(series.iloc[loc])
+    if prev_px == 0:
+        return None
+    return (last_px - prev_px) / prev_px * 100.0
 
 # ---------- Public API ----------
 def build_results(start_date, end_date, today=None, markets_path: str = MARKETS_FILE) -> pd.DataFrame:
