@@ -1,23 +1,26 @@
 symbol,full_name,weight,positive
-GC=F,Gold Futures,10,0
-SI=F,Silver Futures,3,0
-HG=F,Copper Futures,2,0
-PL=F,Platinum Futures,4,0
-CL=F,Crude Oil Futures,7,0
-NG=F,Natural Gas Futures,4,0
-LMT,Lockheed Martin,3,1
-NOC,Northrop Grumman,3,1
-PANW,Palo Alto Networks,4,1
-MCD,McDonald's,3,1
-MAR,Marriott International,3,1
-THYAO.IS,Turkish Airlines,3,0
-2222.SR,Saudi Cement Company,3,0
-EMIRATESNBD.AE,Emirates NBD,2,1
-JPY=X,USD/JPY,4,0
-CHF=X,USD/CHF,3,0
-DX-Y.NYB,Dollar Index,3,0
-^TNX,US 10Y Treasury Yield,3,0
-SYBV.DE,Germany 10Y Bund,5,0
-^GSPC,S&P 500 Index,3,0
-EEM,MSCI Emerging Markets,2,0
 ^VIX,VIX Volatility Index,20,1
+GC=F,Gold Futures,8,0
+CL=F,Crude Oil Futures,7,0
+HYG,iShares High Yield Bond ETF,10,0
+JPY=X,USD/JPY,4,0
+DX-Y.NYB,US Dollar Index,3,0
+^TNX,US 10Y Treasury Yield,3,0
+SYBV.DE,Germany 10Y Bund Yield,4,0
+LMT,Lockheed Martin,3,1
+NOC,Northrop Grumman,2,1
+PANW,Palo Alto Networks,3,1
+^GSPC,S&P 500 Index,4,0
+^IXIC,Nasdaq Composite,3,0
+EEM,MSCI Emerging Markets,2,0
+AUDUSD=X,AUD/USD,3,0
+CHF=X,USD/CHF,2,0
+PL=F,Platinum Futures,2,0
+NG=F,Natural Gas Futures,3,0
+SI=F,Silver Futures,2,0
+HG=F,Copper Futures,2,0
+MCD,McDonald's,2,1
+MAR,Marriott International,2,1
+THYAO.IS,Turkish Airlines,2,0
+2222.SR,Saudi Cement Company,1,0
+EMIRATESNBD.AE,Emirates NBD,1,0
