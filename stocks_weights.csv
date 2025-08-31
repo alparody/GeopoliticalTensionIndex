@@ -1,6 +1,6 @@
 symbol,full_name,weight,positive
 ^VIX,VIX Volatility Index,20,1
-GC=F,Gold Futures,8,0
+GC=F,Gold Futures,10,0
 CL=F,Crude Oil Futures,7,0
 HYG,iShares High Yield Bond ETF,10,0
 JPY=X,USD/JPY,4,0
