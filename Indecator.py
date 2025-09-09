@@ -143,8 +143,9 @@ st.altair_chart(chart, use_container_width=True)
 # --- World Map & Table ---
 fig = plot_world_map(start_date=start_date, end_date=end_date, today=today_date)
 st.plotly_chart(fig, use_container_width=True)
+
 if 1>2:
-show_events_table(start_date, end_date)
+    show_events_table(start_date, end_date)
 
     st.title("📊 مؤشر الأسواق العالمية - Global Map View")
     df = build_results(start_date, end_date, today_date)
